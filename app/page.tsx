@@ -35,6 +35,8 @@ export default function Home() {
   const [error, setError] = useState('')
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [historyStatus, setHistoryStatus] = useState('')
+  const [isDarkMode, setIsDarkMode] = useState(true)
+  const [showMatrix, setShowMatrix] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -122,32 +124,13 @@ export default function Home() {
     URL.revokeObjectURL(url)
   }
 
-  const syncChatJson = async () => {
-    if (messages.length === 0) {
-      setHistoryStatus('No messages to sync')
-      setTimeout(() => setHistoryStatus(''), 2000)
-      return
-    }
+  const toggleDarkMode = () => {
+    setIsDarkMode(!isDarkMode)
+    localStorage.setItem('joe-ai-theme', (!isDarkMode).toString())
+  }
 
-    setHistoryStatus('Syncing to JSONBin...')
-    try {
-      const res = await fetch('/api/history', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages })
-      })
-
-      const data = await res.json()
-      if (!res.ok) {
-        throw new Error(data.error || 'Unable to sync chat history')
-      }
-      setHistoryStatus('Saved to JSONBin')
-    } catch (err) {
-      setHistoryStatus(err instanceof Error ? err.message : 'Sync failed')
-      console.error('History sync error:', err)
-    } finally {
-      setTimeout(() => setHistoryStatus(''), 3000)
-    }
+  const toggleMatrix = () => {
+    setShowMatrix(!showMatrix)
   }
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -213,206 +196,344 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-2 sm:p-4">
-      <div className="w-full max-w-4xl h-screen sm:h-[90vh] flex flex-col bg-slate-900/50 backdrop-blur-xl rounded-2xl shadow-2xl border border-purple-500/20 overflow-hidden">
+    <div className={`min-h-screen transition-all duration-500 ${
+      isDarkMode
+        ? 'bg-black text-green-400'
+        : 'bg-gray-100 text-green-800'
+    } font-mono relative overflow-hidden`}>
+      {/* Matrix Background Effect */}
+      {showMatrix && (
+        <div className="fixed inset-0 pointer-events-none z-0 opacity-20">
+          <div className="matrix-rain"></div>
+        </div>
+      )}
+
+      {/* CRT Scanlines */}
+      <div className="fixed inset-0 pointer-events-none z-10 opacity-10">
+        <div className="crt-scanlines"></div>
+      </div>
+
+      {/* Glitch Effect Overlay */}
+      <div className="fixed inset-0 pointer-events-none z-20 opacity-5">
+        <div className="glitch-overlay"></div>
+      </div>
+
+      <div className="relative z-30 min-h-screen flex flex-col">
         
-        {/* Header */}
-        <div className="bg-gradient-to-r from-purple-600/20 to-blue-600/20 border-b border-purple-500/30 p-4 sm:p-6">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between mb-4">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
-                ⚡ Joe's AI
-              </h1>
-              <p className="text-xs sm:text-sm text-gray-300 mt-1">Chat with the best AI models</p>
+        {/* Terminal Header */}
+        <div className={`border-b-2 ${
+          isDarkMode ? 'border-green-500 bg-gray-900' : 'border-green-600 bg-white'
+        } p-4 shadow-lg`}>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-4">
+              {/* Terminal Window Controls */}
+              <div className="flex gap-2">
+                <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                <div className="w-3 h-3 rounded-full bg-green-500"></div>
+              </div>
+
+              <div className="text-sm opacity-75">
+                joe@terminal:~/ai-chat $
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2 items-center">
+
+            <div className="flex items-center gap-3">
+              {/* Matrix Toggle */}
+              <button
+                onClick={toggleMatrix}
+                className={`px-3 py-1 text-xs border ${
+                  showMatrix
+                    ? 'border-green-400 bg-green-900 text-green-300'
+                    : 'border-gray-600 bg-gray-800 text-gray-400'
+                } rounded hover:opacity-80 transition-all`}
+                title="Toggle Matrix Rain"
+              >
+                {showMatrix ? '█ MATRIX ON' : '█ MATRIX OFF'}
+              </button>
+
+              {/* Dark/Light Mode Toggle */}
+              <button
+                onClick={toggleDarkMode}
+                className={`px-3 py-1 text-xs border ${
+                  isDarkMode
+                    ? 'border-green-400 bg-green-900 text-green-300'
+                    : 'border-green-600 bg-green-100 text-green-800'
+                } rounded hover:opacity-80 transition-all`}
+                title="Toggle Theme"
+              >
+                {isDarkMode ? '🌙 DARK' : '☀️ LIGHT'}
+              </button>
+
+              {/* History Controls */}
               <button
                 type="button"
                 onClick={downloadChatJson}
                 disabled={messages.length === 0}
-                className="px-3 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm bg-blue-500/20 hover:bg-blue-500/30 text-blue-200 border border-blue-500/30 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className={`px-3 py-1 text-xs border ${
+                  isDarkMode
+                    ? 'border-green-400 bg-green-900 text-green-300 disabled:opacity-50'
+                    : 'border-green-600 bg-green-100 text-green-800 disabled:opacity-50'
+                } rounded hover:opacity-80 transition-all disabled:cursor-not-allowed`}
               >
-                📥 Export JSON
+                💾 EXPORT
               </button>
+
               <button
                 type="button"
                 onClick={syncChatJson}
                 disabled={messages.length === 0}
-                className="px-3 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border border-emerald-500/30 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className={`px-3 py-1 text-xs border ${
+                  isDarkMode
+                    ? 'border-green-400 bg-green-900 text-green-300 disabled:opacity-50'
+                    : 'border-green-600 bg-green-100 text-green-800 disabled:opacity-50'
+                } rounded hover:opacity-80 transition-all disabled:cursor-not-allowed`}
               >
-                ☁️ Save to JSONBin
+                ☁️ SYNC
               </button>
+
               {messages.length > 0 && (
                 <button
                   onClick={clearConversation}
-                  className="px-3 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30 rounded-lg transition-colors"
-                  title="Clear conversation"
+                  className={`px-3 py-1 text-xs border ${
+                    isDarkMode
+                      ? 'border-red-400 bg-red-900 text-red-300'
+                      : 'border-red-600 bg-red-100 text-red-800'
+                  } rounded hover:opacity-80 transition-all`}
                 >
-                  🗑️ Clear
+                  🗑️ CLEAR
                 </button>
               )}
             </div>
           </div>
-          {historyStatus && (
-            <div className="text-xs text-gray-300 mb-3">{historyStatus}</div>
-          )}
 
-          {/* Provider & Mode Controls */}
-          <div className="grid grid-cols-2 gap-3 sm:gap-4">
-            <div>
-              <label className="text-xs sm:text-sm font-semibold text-gray-300 mb-2 block">🤖 Provider</label>
-              <select
-                value={selectedProvider}
-                onChange={(e) => setSelectedProvider(e.target.value)}
-                className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-800/50 border border-purple-500/30 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-white disabled:opacity-50"
-                disabled={loading}
-              >
-                <optgroup label="Premium" className="bg-slate-800">
-                  {providers
-                    .filter(p => p.type === 'premium')
-                    .map(p => (
-                      <option key={p.id} value={p.id} className="bg-slate-800">{p.name}</option>
-                    ))}
-                </optgroup>
-                <optgroup label="Free" className="bg-slate-800">
-                  {providers
-                    .filter(p => p.type === 'free')
-                    .map(p => (
-                      <option key={p.id} value={p.id} className="bg-slate-800">{p.name}</option>
-                    ))}
-                </optgroup>
-              </select>
-            </div>
-            
-            <div>
-              <label className="text-xs sm:text-sm font-semibold text-gray-300 mb-2 block">🎯 Mode</label>
-              <select
-                value={selectedMode}
-                onChange={(e) => setSelectedMode(e.target.value)}
-                className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-800/50 border border-purple-500/30 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-white disabled:opacity-50"
-                disabled={loading}
-              >
-                {MODES.map(mode => (
-                  <option key={mode.id} value={mode.id} className="bg-slate-800">
-                    {mode.emoji} {mode.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+          {/* Status Bar */}
+          <div className={`text-xs ${isDarkMode ? 'text-green-300' : 'text-green-700'} opacity-75`}>
+            {historyStatus && (
+              <span className="animate-pulse">{historyStatus}</span>
+            )}
+            {!historyStatus && (
+              <span>
+                Status: {messages.length} messages | Provider: {selectedProvider || 'none'} | Mode: {selectedMode}
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Chat History */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 scroll-smooth">
-          {messages.length === 0 ? (
-            <div className="h-full flex items-center justify-center text-center">
-              <div className="text-gray-400">
-                <div className="text-5xl mb-4">💬</div>
-                <p className="text-sm">Start a conversation by typing a message below</p>
+        {/* Main Terminal Window */}
+        <div className="flex-1 flex">
+          {/* Sidebar - Provider & Mode Selection */}
+          <div className={`w-64 ${
+            isDarkMode ? 'bg-gray-900 border-green-500' : 'bg-white border-green-600'
+          } border-r-2 p-4`}>
+            <div className="space-y-6">
+              {/* AI Provider Selection */}
+              <div>
+                <h3 className={`text-sm font-bold mb-3 ${
+                  isDarkMode ? 'text-green-300' : 'text-green-800'
+                } border-b border-current pb-1`}>
+                  🤖 AI PROVIDER
+                </h3>
+                <div className="space-y-2">
+                  {providers.map(provider => (
+                    <button
+                      key={provider.id}
+                      onClick={() => setSelectedProvider(provider.id)}
+                      className={`w-full text-left px-3 py-2 text-xs border ${
+                        selectedProvider === provider.id
+                          ? (isDarkMode
+                              ? 'border-green-400 bg-green-900 text-green-300'
+                              : 'border-green-600 bg-green-100 text-green-800')
+                          : (isDarkMode
+                              ? 'border-gray-600 bg-gray-800 text-gray-400 hover:border-green-500'
+                              : 'border-gray-400 bg-gray-50 text-gray-600 hover:border-green-500')
+                      } rounded transition-all`}
+                      disabled={loading}
+                    >
+                      {provider.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Mode Selection */}
+              <div>
+                <h3 className={`text-sm font-bold mb-3 ${
+                  isDarkMode ? 'text-green-300' : 'text-green-800'
+                } border-b border-current pb-1`}>
+                  🎯 MODE
+                </h3>
+                <div className="space-y-2">
+                  {MODES.map(mode => (
+                    <button
+                      key={mode.id}
+                      onClick={() => setSelectedMode(mode.id)}
+                      className={`w-full text-left px-3 py-2 text-xs border ${
+                        selectedMode === mode.id
+                          ? (isDarkMode
+                              ? 'border-green-400 bg-green-900 text-green-300'
+                              : 'border-green-600 bg-green-100 text-green-800')
+                          : (isDarkMode
+                              ? 'border-gray-600 bg-gray-800 text-gray-400 hover:border-green-500'
+                              : 'border-gray-400 bg-gray-50 text-gray-600 hover:border-green-500')
+                      } rounded transition-all`}
+                      disabled={loading}
+                    >
+                      {mode.emoji} {mode.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
-          ) : (
-            messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'} animate-fadeIn`}
-              >
-                <div
-                  className={`max-w-xs sm:max-w-md lg:max-w-lg xl:max-w-2xl px-4 py-3 rounded-xl shadow-lg transition-all ${
-                    msg.type === 'user'
-                      ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-br-none'
-                      : 'bg-slate-800/80 border border-purple-500/30 text-gray-100 rounded-bl-none'
-                  }`}
-                >
-                  <p className="whitespace-pre-wrap text-sm sm:text-base leading-relaxed break-words">{msg.content}</p>
-                  <div className={`text-xs mt-2 flex items-center justify-between gap-2 ${msg.type === 'user' ? 'text-purple-100' : 'text-gray-400'}`}>
-                    <span>{msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                    {msg.type === 'assistant' && (
-                      <button
-                        onClick={() => copyToClipboard(msg.content, msg.id)}
-                        className={`hover:opacity-70 transition-opacity ${copiedId === msg.id ? 'text-green-400' : ''}`}
-                        title="Copy message"
-                      >
-                        {copiedId === msg.id ? '✓ Copied' : '📋 Copy'}
-                      </button>
-                    )}
+          </div>
+          {/* Chat Terminal */}
+          <div className="flex-1 flex flex-col">
+            {/* Messages Area */}
+            <div className={`flex-1 overflow-y-auto p-4 space-y-4 ${
+              isDarkMode ? 'bg-black' : 'bg-gray-50'
+            }`}>
+              {messages.length === 0 ? (
+                <div className="h-full flex items-center justify-center">
+                  <div className={`text-center ${isDarkMode ? 'text-green-500' : 'text-green-700'}`}>
+                    <div className="text-6xl mb-4 animate-pulse">⚡</div>
+                    <div className="text-lg font-bold mb-2">JOE'S AI TERMINAL</div>
+                    <div className="text-sm opacity-75">
+                      Initialize conversation sequence...<br/>
+                      Select provider and mode, then begin transmission.
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
-          )}
-          
-          {loading && (
-            <div className="flex justify-start">
-              <div className="bg-slate-800/80 border border-purple-500/30 text-gray-100 px-4 py-3 rounded-xl rounded-bl-none">
-                <div className="flex items-center gap-2">
-                  <svg className="animate-spin h-5 w-5 text-purple-400" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                  </svg>
-                  <span className="text-sm">Thinking...</span>
+              ) : (
+                messages.map((msg, index) => (
+                  <div key={msg.id} className="animate-fadeIn">
+                    {/* User Message */}
+                    {msg.type === 'user' && (
+                      <div className="flex justify-end mb-4">
+                        <div className={`max-w-lg px-4 py-3 border-2 ${
+                          isDarkMode
+                            ? 'border-blue-500 bg-blue-900/20 text-blue-300'
+                            : 'border-blue-600 bg-blue-50 text-blue-800'
+                        } rounded-lg`}>
+                          <div className="text-xs opacity-75 mb-1">
+                            [USER] {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                          <div className="whitespace-pre-wrap text-sm leading-relaxed break-words">
+                            {msg.content}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Assistant Message */}
+                    {msg.type === 'assistant' && (
+                      <div className="flex justify-start mb-4">
+                        <div className={`max-w-2xl px-4 py-3 border-2 ${
+                          isDarkMode
+                            ? 'border-green-500 bg-green-900/20 text-green-300'
+                            : 'border-green-600 bg-green-50 text-green-800'
+                        } rounded-lg`}>
+                          <div className="text-xs opacity-75 mb-1 flex items-center justify-between">
+                            <span>
+                              [AI:{msg.provider.toUpperCase()}] {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                            <button
+                              onClick={() => copyToClipboard(msg.content, msg.id)}
+                              className={`text-xs hover:opacity-70 transition-opacity ${
+                                copiedId === msg.id ? 'text-yellow-400' : 'opacity-50'
+                              }`}
+                              title="Copy response"
+                            >
+                              {copiedId === msg.id ? '✓ COPIED' : '📋 COPY'}
+                            </button>
+                          </div>
+                          <div className="whitespace-pre-wrap text-sm leading-relaxed break-words font-mono">
+                            {msg.content}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+
+              {/* Loading Indicator */}
+              {loading && (
+                <div className="flex justify-start">
+                  <div className={`px-4 py-3 border-2 ${
+                    isDarkMode
+                      ? 'border-green-500 bg-green-900/20 text-green-300'
+                      : 'border-green-600 bg-green-50 text-green-800'
+                  } rounded-lg`}>
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin w-4 h-4 border-2 border-current border-t-transparent rounded-full"></div>
+                      <span className="text-sm">Processing query...</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
+
+              <div ref={messagesEndRef} />
             </div>
-          )}
 
-          <div ref={messagesEndRef} />
-        </div>
+            {/* Error Display */}
+            {error && (
+              <div className={`mx-4 mb-4 p-3 border-2 ${
+                isDarkMode
+                  ? 'border-red-500 bg-red-900/20 text-red-300'
+                  : 'border-red-600 bg-red-50 text-red-800'
+              } rounded-lg`}>
+                <div className="text-sm font-bold mb-1">[ERROR]</div>
+                <div className="text-sm">{error}</div>
+              </div>
+            )}
 
-        {/* Error Message */}
-        {error && (
-          <div className="mx-4 sm:mx-6 mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
-            <p className="text-red-300 text-sm sm:text-base">⚠️ {error}</p>
+            {/* Input Terminal */}
+            <div className={`border-t-2 ${
+              isDarkMode ? 'border-green-500 bg-gray-900' : 'border-green-600 bg-white'
+            } p-4`}>
+              <form onSubmit={handleSubmit} className="flex gap-3">
+                <div className="flex-1">
+                  <div className={`text-xs mb-2 ${
+                    isDarkMode ? 'text-green-300' : 'text-green-700'
+                  }`}>
+                    joe@terminal:~/ai-chat/input $
+                  </div>
+                  <textarea
+                    ref={textareaRef}
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault()
+                        if (!loading && message.trim()) {
+                          handleSubmit(e as any)
+                        }
+                      }
+                    }}
+                    placeholder="Enter your query... (Shift+Enter for new line)"
+                    className={`w-full px-3 py-2 text-sm border-2 ${
+                      isDarkMode
+                        ? 'border-green-500 bg-black text-green-400 placeholder-green-600'
+                        : 'border-green-600 bg-white text-green-800 placeholder-green-500'
+                    } rounded focus:outline-none focus:ring-1 focus:ring-green-500 resize-none font-mono`}
+                    rows={3}
+                    disabled={loading}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={loading || !message.trim() || !selectedProvider}
+                  className={`px-6 py-2 border-2 ${
+                    isDarkMode
+                      ? 'border-green-400 bg-green-900 text-green-300 hover:bg-green-800'
+                      : 'border-green-600 bg-green-100 text-green-800 hover:bg-green-200'
+                  } rounded font-bold transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100 font-mono text-sm`}
+                  title="Execute query (Enter)"
+                >
+                  {loading ? 'EXECUTING...' : 'EXECUTE'}
+                </button>
+              </form>
+            </div>
           </div>
-        )}
-
-        {/* Input Area */}
-        <div className="border-t border-purple-500/30 bg-slate-900/50 p-4 sm:p-6">
-          <form onSubmit={handleSubmit} className="flex gap-2 sm:gap-3">
-            <textarea
-              ref={textareaRef}
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  if (!loading && message.trim()) {
-                    handleSubmit(e as any)
-                  }
-                }
-              }}
-              placeholder="Ask me anything... (Shift+Enter for new line)"
-              className="flex-1 px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-base bg-slate-800/50 border border-purple-500/30 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-white placeholder-gray-500 resize-none disabled:opacity-50 transition-all"
-              rows={3}
-              disabled={loading}
-            />
-            <button
-              type="submit"
-              disabled={loading || !message.trim()}
-              className="px-3 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:from-gray-600 disabled:to-gray-600 text-white font-semibold rounded-lg transition-all hover:shadow-lg hover:shadow-purple-500/50 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 disabled:scale-100 text-xs sm:text-base whitespace-nowrap"
-              title="Send message (or press Enter)"
-            >
-              {loading ? '...' : '🚀'}
-            </button>
-          </form>
         </div>
       </div>
-
-      <style jsx>{`
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        :global(.animate-fadeIn) {
-          animation: fadeIn 0.3s ease-out;
-        }
-      `}</style>
-    </div>
-  )
-}
