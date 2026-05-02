@@ -62,15 +62,15 @@ export default function Home() {
     e.preventDefault()
     if (!message.trim()) return
 
-    // Immediately show loading state and scroll to bottom
+    // Immediately show loading state
     setLoading(true)
     setError('')
     setResponse('')
     
-    // Scroll to bottom immediately after setting loading
-    setTimeout(() => {
+    // Scroll to bottom immediately - use requestAnimationFrame for reliable scroll
+    requestAnimationFrame(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-    }, 50)
+    })
 
     try {
       const res = await fetch('/api/chat', {
