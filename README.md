@@ -221,4 +221,4 @@ For issues and questions:
 
 ---
 
-**Built with ❤️ by Joe's AI Team**
+**Built with ❤️ by Joes AI Team**

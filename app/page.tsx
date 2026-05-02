@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 interface Provider {
   id: string
@@ -24,6 +24,8 @@ export default function Home() {
   const [selectedMode, setSelectedMode] = useState('general')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // Fetch available providers on mount
   useEffect(() => {
@@ -44,13 +46,31 @@ export default function Home() {
     fetchProviders()
   }, [])
 
+  // Auto-scroll to bottom when loading or response changes
+  useEffect(() => {
+    if (loading || response) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    }
+  }, [loading, response])
+
+  // Focus textarea on mount
+  useEffect(() => {
+    textareaRef.current?.focus()
+  }, [])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!message.trim()) return
 
+    // Immediately show loading state and scroll to bottom
     setLoading(true)
     setError('')
     setResponse('')
+    
+    // Scroll to bottom immediately after setting loading
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    }, 50)
 
     try {
       const res = await fetch('/api/chat', {
@@ -145,9 +165,19 @@ export default function Home() {
               Your Message
             </label>
             <textarea
+              ref={textareaRef}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              placeholder="Ask me anything..."
+              onKeyDown={(e) => {
+                // Submit on Enter (without Shift)
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  if (!loading && message.trim()) {
+                    handleSubmit(e as any)
+                  }
+                }
+              }}
+              placeholder="Ask me anything... (Press Enter to send)"
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
               rows={5}
               disabled={loading}
@@ -172,6 +202,18 @@ export default function Home() {
           </div>
         )}
 
+        {/* Loading Indicator */}
+        {loading && (
+          <div className="mt-6 p-4 bg-indigo-50 border border-indigo-200 rounded-lg animate-pulse">
+            <div className="flex items-center gap-3">
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+              <p className="text-blue-700 text-sm ml-2">AI is thinking...</p>
+            </div>
+          </div>
+        )}
+
         {/* Response */}
         {response && (
           <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
@@ -179,6 +221,9 @@ export default function Home() {
             <p className="text-blue-800 whitespace-pre-wrap">{response}</p>
           </div>
         )}
+
+        {/* Invisible element to scroll to */}
+        <div ref={messagesEndRef} />
       </div>
     </div>
   )
