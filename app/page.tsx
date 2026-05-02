@@ -101,12 +101,12 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-2xl">
-        <h1 className="text-3xl font-bold mb-2 text-gray-800">Joe's AI Interface</h1>
-        <p className="text-gray-600 mb-6">Chat with multiple AI providers</p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-2 sm:p-4">
+      <div className="bg-white p-4 sm:p-6 md:p-8 rounded-lg shadow-lg w-full max-w-2xl">
+        <h1 className="text-2xl sm:text-3xl font-bold mb-2 text-gray-800">Joes AI Interface</h1>
+        <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">Chat with multiple AI providers</p>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
           {/* Provider Selection */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -115,7 +115,7 @@ export default function Home() {
             <select
               value={selectedProvider}
               onChange={(e) => setSelectedProvider(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 sm:px-4 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
               disabled={loading}
             >
               <optgroup label="Premium">
@@ -140,13 +140,13 @@ export default function Home() {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Mode
             </label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
               {MODES.map(mode => (
                 <button
                   key={mode.id}
                   type="button"
                   onClick={() => setSelectedMode(mode.id)}
-                  className={`px-4 py-2 rounded-lg font-medium transition ${
+                  className={`px-2 py-2 sm:px-3 sm:py-2 rounded-lg font-medium transition text-xs sm:text-sm ${
                     selectedMode === mode.id
                       ? 'bg-blue-500 text-white'
                       : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
@@ -178,8 +178,8 @@ export default function Home() {
                 }
               }}
               placeholder="Ask me anything... (Press Enter to send)"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-              rows={5}
+              className="w-full px-3 py-2 sm:px-4 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-sm sm:text-base"
+              rows={4}
               disabled={loading}
             />
           </div>
@@ -188,7 +188,7 @@ export default function Home() {
           <button
             type="submit"
             disabled={loading || !message.trim()}
-            className="w-full bg-blue-500 text-white font-medium py-3 rounded-lg hover:bg-blue-600 disabled:bg-gray-400 transition"
+            className="w-full bg-blue-500 text-white font-medium py-2 sm:py-3 rounded-lg hover:bg-blue-600 disabled:bg-gray-400 transition text-sm sm:text-base"
           >
             {loading ? 'Thinking...' : 'Send'}
           </button>
@@ -196,29 +196,29 @@ export default function Home() {
 
         {/* Error Message */}
         {error && (
-          <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-800 font-medium">Error</p>
-            <p className="text-red-700 text-sm">{error}</p>
+          <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-800 font-medium text-sm sm:text-base">Error</p>
+            <p className="text-red-700 text-xs sm:text-sm">{error}</p>
           </div>
         )}
 
         {/* Loading Indicator */}
         {loading && (
-          <div className="mt-6 p-4 bg-indigo-50 border border-indigo-200 rounded-lg animate-pulse">
-            <div className="flex items-center gap-3">
+          <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-indigo-50 border border-indigo-200 rounded-lg animate-pulse">
+            <div className="flex items-center gap-2 sm:gap-3">
               <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
               <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
               <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-              <p className="text-blue-700 text-sm ml-2">AI is thinking...</p>
+              <p className="text-blue-700 text-xs sm:text-sm ml-2">AI is thinking...</p>
             </div>
           </div>
         )}
 
         {/* Response */}
         {response && (
-          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-blue-900 font-medium mb-2">Response</p>
-            <p className="text-blue-800 whitespace-pre-wrap">{response}</p>
+          <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-blue-900 font-medium mb-2 text-sm sm:text-base">Response</p>
+            <p className="text-blue-800 whitespace-pre-wrap text-sm sm:text-base">{response}</p>
           </div>
         )}
 
