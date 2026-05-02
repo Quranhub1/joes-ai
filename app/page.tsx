@@ -27,7 +27,6 @@ export default function Home() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // Fetch available providers on mount
   useEffect(() => {
     const fetchProviders = async () => {
       try {
@@ -45,14 +44,12 @@ export default function Home() {
     fetchProviders()
   }, [])
 
-  // Auto-scroll to bottom when loading or response changes
   useEffect(() => {
     if (loading || response) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
     }
   }, [loading, response])
 
-  // Focus textarea on mount
   useEffect(() => {
     textareaRef.current?.focus()
   }, [])
@@ -98,106 +95,128 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 flex items-center justify-center p-2 sm:p-4">
-      <div className="bg-white/95 backdrop-blur-sm p-4 sm:p-6 md:p-8 rounded-2xl shadow-2xl w-full max-w-2xl border border-white/20">
+    <div className="min-h-screen bg-black text-green-400 font-mono p-2 sm:p-4">
+      <div className="max-w-4xl mx-auto">
         <div className="text-center mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold mb-2 bg-gradient-to-r from-indigo-600 to-pink-600 bg-clip-text text-transparent">Joe's AI Interface</h1>
-          <p className="text-sm sm:text-base text-gray-600">Chat with the best AI models</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-green-500 mb-2 glow-text">JOE'S AI INTERFACE</h1>
+          <p className="text-sm text-green-600">Chat with the best AI models</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="bg-gradient-to-r from-indigo-50 to-pink-50 p-3 rounded-xl">
-            <label className="block text-sm font-semibold text-gray-800 mb-2">AI Provider</label>
-            <select
-              value={selectedProvider}
-              onChange={(e) => setSelectedProvider(e.target.value)}
-              className="w-full px-3 py-2 border-2 border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm sm:text-base bg-white shadow-sm"
-              disabled={loading}
-            >
-              <optgroup label="Premium">
-                {providers
-                  .filter(p => p.type === 'premium')
-                  .map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-              </optgroup>
-              <optgroup label="Free">
-                {providers
-                  .filter(p => p.type === 'free')
-                  .map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-              </optgroup>
-            </select>
-          </div>
-
-          <div className="bg-gradient-to-r from-purple-50 to-indigo-50 p-3 rounded-xl">
-            <label className="block text-sm font-semibold text-gray-800 mb-2">Mode</label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
-              {MODES.map(mode => (
-                <button
-                  key={mode.id}
-                  type="button"
-                  onClick={() => setSelectedMode(mode.id)}
-                  className={`px-2 py-2 rounded-xl font-semibold transition text-xs sm:text-sm shadow-sm ${
-                    selectedMode === mode.id
-                      ? 'bg-gradient-to-r from-indigo-500 to-pink-500 text-white shadow-lg'
-                      : 'bg-white text-gray-700 hover:bg-indigo-50 border border-gray-200'
-                  }`}
-                  disabled={loading}
-                >
-                  {mode.label}
-                </button>
-              ))}
+        <div className="border-2 border-green-800 rounded-lg p-4 sm:p-6 bg-black/50 backdrop-blur">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm text-green-600 mb-2">[AI_PROVIDER]</label>
+              <select
+                value={selectedProvider}
+                onChange={(e) => setSelectedProvider(e.target.value)}
+                className="w-full px-3 py-2 bg-black border border-green-800 rounded text-green-400 focus:outline-none focus:border-green-500 text-sm"
+                disabled={loading}
+              >
+                <optgroup label="Premium">
+                  {providers
+                    .filter(p => p.type === 'premium')
+                    .map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                </optgroup>
+                <optgroup label="Free">
+                  {providers
+                    .filter(p => p.type === 'free')
+                    .map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                </optgroup>
+              </select>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-sm font-semibold text-gray-800 mb-2">Your Message</label>
-            <textarea
-              ref={textareaRef}
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  if (!loading && message.trim()) {
-                    handleSubmit(e as any)
+            <div>
+              <label className="block text-sm text-green-600 mb-2">[MODE_SELECT]</label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                {MODES.map(mode => (
+                  <button
+                    key={mode.id}
+                    type="button"
+                    onClick={() => setSelectedMode(mode.id)}
+                    className={`px-2 py-2 rounded text-xs sm:text-sm transition-all border ${
+                      selectedMode === mode.id
+                        ? 'bg-green-900 text-green-200 border-green-500'
+                        : 'bg-black text-green-600 border-green-800 hover:border-green-600 hover:text-green-400'
+                    }`}
+                    disabled={loading}
+                  >
+                    {mode.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm text-green-600 mb-2">[INPUT_COMMAND]</label>
+              <textarea
+                ref={textareaRef}
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    if (!loading && message.trim()) {
+                      handleSubmit(e as any)
+                    }
                   }
-                }
-              }}
-              placeholder="Ask me anything... (Press Enter to send)"
-              className="w-full px-4 py-3 border-2 border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none text-sm sm:text-base bg-white shadow-sm"
-              rows={4}
-              disabled={loading}
-            />
-          </div>
+                }}
+                placeholder="Enter command... (Press Enter to send)"
+                className="w-full px-4 py-3 bg-black border border-green-800 rounded text-green-400 focus:outline-none focus:border-green-500 resize-none text-sm placeholder-green-800"
+                rows={4}
+                disabled={loading}
+              />
+            </div>
 
-          <button
-            type="submit"
-            disabled={loading || !message.trim()}
-            className="w-full bg-gradient-to-r from-indigo-600 to-pink-600 text-white font-bold py-3 rounded-xl hover:from-indigo-700 hover:to-pink-700 disabled:from-gray-400 disabled:to-gray-400 transition-all shadow-lg"
-          >
-            {loading ? 'Thinking...' : 'Send'}
-          </button>
-        </form>
+            <button
+              type="submit"
+              disabled={loading || !message.trim()}
+              className="w-full bg-green-900 text-green-200 font-bold py-3 rounded border border-green-700 hover:bg-green-800 hover:border-green-500 disabled:bg-gray-900 disabled:text-gray-600 disabled:border-gray-800 transition-all"
+            >
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="animate-pulse">PROCESSING...</span>
+                </span>
+              ) : (
+                '>> EXECUTE'
+              )}
+            </button>
+          </form>
 
-        {error && (
-          <div className="mt-4 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
-            <p className="text-red-800 font-semibold">Error</p>
-            <p className="text-red-700 text-sm mt-1">{error}</p>
-          </div>
-        )}
+          {error && (
+            <div className="mt-4 p-4 bg-red-900/20 border border-red-800 rounded">
+              <p className="text-red-400 font-semibold">[ERROR]</p>
+              <p className="text-red-500 text-sm mt-1">{error}</p>
+            </div>
+          )}
 
-        {response && (
-          <div className="mt-4 p-4 bg-gradient-to-br from-indigo-50 to-pink-50 border-2 border-indigo-200 rounded-xl">
-            <p className="text-indigo-900 font-semibold mb-2">AI Response</p>
-            <p className="text-indigo-800 whitespace-pre-wrap text-sm leading-relaxed">{response}</p>
-          </div>
-        )}
+          {response && (
+            <div className="mt-4 p-4 bg-green-900/10 border border-green-800 rounded">
+              <p className="text-green-500 font-semibold mb-2">[AI_RESPONSE]</p>
+              <p className="text-green-400 whitespace-pre-wrap text-sm leading-relaxed">{response}</p>
+            </div>
+          )}
 
-        <div ref={messagesEndRef} />
+          <div ref={messagesEndRef} />
+        </div>
+
+        <div className="mt-4 text-center text-xs text-green-700">
+          <p>JOE'S AI v1.0 | TERMINAL INTERFACE | {new Date().getFullYear()}</p>
+        </div>
       </div>
+
+      <style jsx global>{`
+        @keyframes glow {
+          0%, 100% { text-shadow: 0 0 5px #166534, 0 0 10px #166534; }
+          50% { text-shadow: 0 0 10px #22c55e, 0 0 20px #22c55e, 0 0 30px #22c55e; }
+        }
+        .glow-text {
+          animation: glow 3s ease-in-out infinite;
+        }
+      `}</style>
     </div>
   )
 }
