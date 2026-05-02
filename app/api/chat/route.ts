@@ -85,7 +85,7 @@ const SYSTEM_PROMPTS: Record<string, string> = {
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, provider, mode } = await request.json()
+    const { message, provider: requestedProvider, mode } = await request.json()
 
     if (!message?.trim()) {
       return NextResponse.json(
@@ -96,35 +96,148 @@ export async function POST(request: NextRequest) {
 
     const systemPrompt = SYSTEM_PROMPTS[mode] || SYSTEM_PROMPTS.general
 
-    let response: string
+    // Get available providers
+    const availableProviders = await getAvailableProviders()
 
-    switch (provider) {
-      case 'groq':
-        response = await callGroqAPI(message, systemPrompt)
-        break
-      case 'gemini':
-        response = await callGeminiAPI(message, systemPrompt)
-        break
-      case 'openai':
-        response = await callOpenAIAPI(message, systemPrompt)
-        break
-      case 'claude':
-        response = await callClaudeAPI(message, systemPrompt)
-        break
-      default:
-        return NextResponse.json(
-          { error: 'Provider not supported' },
-          { status: 400 }
-        )
+    // Determine which provider to use with fallback logic
+    let providerToUse = requestedProvider
+
+    // If requested provider is not available, try fallback providers
+    const fallbackOrder = ['groq', 'bazaarlink', 'completions', 'openai', 'claude']
+
+    if (!availableProviders.includes(requestedProvider)) {
+      // Find first available provider in fallback order
+      providerToUse = fallbackOrder.find(p => availableProviders.includes(p)) || requestedProvider
     }
 
-    return NextResponse.json({ response })
+    let response: string
+    let lastError: Error | null = null
+
+    // Try the requested provider first, then fallbacks
+    const providersToTry = [providerToUse, ...fallbackOrder.filter(p => p !== providerToUse && availableProviders.includes(p))]
+
+    for (const provider of providersToTry) {
+      try {
+        switch (provider) {
+          case 'groq':
+            response = await callGroqAPI(message, systemPrompt)
+            break
+          case 'gemini':
+            response = await callGeminiAPI(message, systemPrompt)
+            break
+          case 'openai':
+            response = await callOpenAIAPI(message, systemPrompt)
+            break
+          case 'claude':
+            response = await callClaudeAPI(message, systemPrompt)
+            break
+          case 'bazaarlink':
+            response = await callBazaarLinkAPI(message, systemPrompt)
+            break
+          case 'completions':
+            response = await callCompletionsAPI(message, systemPrompt)
+            break
+          default:
+            continue // Skip unsupported providers
+        }
+
+        // If we get here, the provider worked
+        return NextResponse.json({
+          response,
+          provider: provider, // Return which provider was actually used
+          fallback: provider !== requestedProvider // Indicate if fallback was used
+        })
+      } catch (error) {
+        lastError = error as Error
+        console.warn(`Provider ${provider} failed:`, error)
+        // Continue to next provider
+      }
+    }
+
+    // If all providers failed, return the last error
+    console.error('All providers failed. Last error:', lastError)
+    return NextResponse.json(
+      { error: lastError?.message || 'All AI providers are currently unavailable. Please try again later.' },
+      { status: 500 }
+    )
   } catch (error) {
     console.error('Chat API error:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }
     )
+  }
+}
+
+async function getAvailableProviders(): Promise<string[]> {
+  const providers = []
+
+  if (process.env.GROQ_API_KEY) providers.push('groq')
+  if (process.env.GEMINI_API_KEY) providers.push('gemini')
+  if (process.env.OPENAI_API_KEY) providers.push('openai')
+  if (process.env.ANTHROPIC_API_KEY) providers.push('claude')
+
+  // Free providers that don't require API keys
+  providers.push('bazaarlink', 'completions')
+
+  return providers
+}
+
+async function callBazaarLinkAPI(message: string, systemPrompt: string): Promise<string> {
+  try {
+    const res = await fetch('https://api.bazaarlink.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'auto',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: message }
+        ],
+        temperature: 0.7,
+        max_tokens: 2048
+      })
+    })
+
+    if (!res.ok) {
+      throw new Error(`BazaarLink API error: ${res.status}`)
+    }
+
+    const data = await res.json()
+    return data.choices?.[0]?.message?.content || 'No response from BazaarLink'
+  } catch (error) {
+    throw new Error(`BazaarLink API failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+  }
+}
+
+async function callCompletionsAPI(message: string, systemPrompt: string): Promise<string> {
+  try {
+    const res = await fetch('https://api.completions.me/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'gpt-3.5-turbo',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: message }
+        ],
+        temperature: 0.7,
+        max_tokens: 2048
+      })
+    })
+
+    if (!res.ok) {
+      throw new Error(`Completions.me API error: ${res.status}`)
+    }
+
+    const data = await res.json()
+    return data.choices?.[0]?.message?.content || 'No response from Completions.me'
+  } catch (error) {
+    throw new Error(`Completions.me API failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
 
