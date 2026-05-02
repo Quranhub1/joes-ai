@@ -104,7 +104,7 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-2 sm:p-4">
       <div className="bg-white p-4 sm:p-6 md:p-8 rounded-lg shadow-lg w-full max-w-2xl">
         <h1 className="text-2xl sm:text-3xl font-bold mb-2 text-gray-800">Joes AI Interface</h1>
-        <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">Chat with multiple AI providers</p>
+        <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">Chat with the best AI models</p>
 
         <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
           {/* Provider Selection */}
