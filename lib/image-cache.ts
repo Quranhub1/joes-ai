@@ -46,12 +46,13 @@ export function setCachedImage(prompt: string, output: string[]): void {
     let oldestKey = ''
     let oldestTime = Date.now()
 
-    for (const [key, entry] of imageCache.entries()) {
+    // Use forEach instead of for...of to avoid downlevelIteration issues
+    imageCache.forEach((entry, key) => {
       if (entry.timestamp < oldestTime) {
         oldestTime = entry.timestamp
         oldestKey = key
       }
-    }
+    })
 
     if (oldestKey) {
       imageCache.delete(oldestKey)
@@ -77,9 +78,10 @@ export function getCacheStats(): { size: number; hits: number; misses: number } 
 // Clean up expired entries periodically
 setInterval(() => {
   const now = Date.now()
-  for (const [key, entry] of imageCache.entries()) {
+  // Use forEach instead of for...of to avoid downlevelIteration issues
+  imageCache.forEach((entry, key) => {
     if (now > entry.expiresAt) {
       imageCache.delete(key)
     }
-  }
+  })
 }, 60000) // Clean up every minute
