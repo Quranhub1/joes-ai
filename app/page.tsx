@@ -85,113 +85,140 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-green-400 font-mono flex flex-col">
-      {/* Header - Fixed at top */}
-      <div className="border-b border-green-800 p-3 bg-black/90 sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto">
-          <h1 className="text-xl sm:text-2xl font-bold text-green-500 text-center glow-text">JOE'S AI INTERFACE</h1>
-          <p className="text-xs text-green-600 text-center">Chat with the best AI models</p>
+    <div className="min-h-screen bg-white flex flex-col">
+      {/* Header */}
+      <header className="border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 bg-white z-10">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+            <span className="text-white font-bold text-sm">AI</span>
+          </div>
+          <h1 className="text-xl font-semibold text-gray-800">Joe's AI Interface</h1>
         </div>
-      </div>
+        <div className="flex items-center gap-4">
+          <select
+            value={selectedProvider}
+            onChange={(e) => setSelectedProvider(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            disabled={loading}
+          >
+            <optgroup label="Premium">
+              {providers
+                .filter(p => p.type === 'premium')
+                .map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+            </optgroup>
+            <optgroup label="Free">
+              {providers
+                .filter(p => p.type === 'free')
+                .map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+            </optgroup>
+          </select>
+        </div>
+      </header>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col max-w-4xl mx-auto w-full p-2 sm:p-4 gap-4">
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col max-w-5xl mx-auto w-full p-4 sm:p-6 gap-4">
         
-        {/* Controls Section */}
-        <div className="flex flex-col sm:flex-row gap-3 shrink-0">
-          <div className="flex-1">
-            <label className="block text-xs text-green-600 mb-1">[AI_PROVIDER]</label>
-            <select
-              value={selectedProvider}
-              onChange={(e) => setSelectedProvider(e.target.value)}
-              className="w-full px-3 py-2 bg-black border border-green-800 rounded text-green-400 focus:outline-none focus:border-green-500 text-sm"
+        {/* Mode Selection */}
+        <div className="flex gap-2 overflow-x-auto pb-2">
+          {MODES.map(mode => (
+            <button
+              key={mode.id}
+              type="button"
+              onClick={() => setSelectedMode(mode.id)}
+              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
+                selectedMode === mode.id
+                  ? 'bg-blue-500 text-white shadow-md'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
               disabled={loading}
             >
-              <optgroup label="Premium">
-                {providers
-                  .filter(p => p.type === 'premium')
-                  .map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-              </optgroup>
-              <optgroup label="Free">
-                {providers
-                  .filter(p => p.type === 'free')
-                  .map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-              </optgroup>
-            </select>
-          </div>
-
-          <div className="flex-1">
-            <label className="block text-xs text-green-600 mb-1">[MODE_SELECT]</label>
-            <div className="flex flex-wrap gap-1">
-              {MODES.map(mode => (
-                <button
-                  key={mode.id}
-                  type="button"
-                  onClick={() => setSelectedMode(mode.id)}
-                  className={`px-2 py-1 rounded text-xs transition-all border ${
-                    selectedMode === mode.id
-                      ? 'bg-green-900 text-green-200 border-green-500'
-                      : 'bg-black text-green-600 border-green-800 hover:border-green-600 hover:text-green-400'
-                  }`}
-                  disabled={loading}
-                >
-                  {mode.label}
-                </button>
-              ))}
-            </div>
-          </div>
+              {mode.label}
+            </button>
+          ))}
         </div>
 
-        {/* Messages Area - Scrollable */}
-        <div className="flex-1 overflow-y-auto min-h-0 border border-green-800 rounded-lg p-4 bg-black/50">
-          <div className="space-y-4">
-            {/* Welcome Message */}
-            <div className="text-green-600 text-sm">
-              <span className="text-green-500">[SYSTEM]</span> Welcome to Joe's AI Interface v1.0
+        {/* Messages Area */}
+        <div className="flex-1 overflow-y-auto min-h-0 space-y-6 py-4">
+          {/* Welcome */}
+          {!response && !loading && !error && (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <span className="text-white font-bold text-2xl">AI</span>
+              </div>
+              <h2 className="text-2xl font-semibold text-gray-800 mb-2">Welcome to Joe's AI</h2>
+              <p className="text-gray-500">Select a mode and start chatting with AI</p>
             </div>
+          )}
 
-            {/* User Message */}
-            {message && (
-              <div className="text-green-300">
-                <span className="text-green-500">[YOU]</span> {message}
+          {/* User Message */}
+          {message && (
+            <div className="flex gap-4">
+              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center shrink-0">
+                <span className="text-white text-sm">Y</span>
               </div>
-            )}
-
-            {/* Loading */}
-            {loading && (
-              <div className="text-green-500 animate-pulse">
-                <span className="text-green-500">[AI]</span> Processing...
+              <div className="flex-1">
+                <p className="font-medium text-gray-800 mb-1">You</p>
+                <p className="text-gray-700 bg-gray-50 rounded-2xl rounded-tl-md p-4">{message}</p>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Response */}
-            {response && (
-              <div className="text-green-400">
-                <span className="text-green-500">[AI_RESPONSE]</span>
-                <div className="mt-1 whitespace-pre-wrap text-sm leading-relaxed">{response}</div>
+          {/* Loading */}
+          {loading && (
+            <div className="flex gap-4">
+              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shrink-0 animate-pulse">
+                <span className="text-white text-sm">AI</span>
               </div>
-            )}
-
-            {/* Error */}
-            {error && (
-              <div className="text-red-400">
-                <span className="text-red-500">[ERROR]</span> {error}
+              <div className="flex-1">
+                <p className="font-medium text-gray-800 mb-1">AI Assistant</p>
+                <div className="flex gap-2 items-center p-4">
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                </div>
               </div>
-            )}
+            </div>
+          )}
 
-            <div ref={messagesEndRef} />
-          </div>
+          {/* Response */}
+          {response && (
+            <div className="flex gap-4">
+              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shrink-0">
+                <span className="text-white text-sm">AI</span>
+              </div>
+              <div className="flex-1">
+                <p className="font-medium text-gray-800 mb-1">AI Assistant</p>
+                <div className="text-gray-700 bg-gray-50 rounded-2xl rounded-tl-md p-4 whitespace-pre-wrap leading-relaxed">
+                  {response}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Error */}
+          {error && (
+            <div className="flex gap-4">
+              <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center shrink-0">
+                <span className="text-white text-sm">!</span>
+              </div>
+              <div className="flex-1">
+                <p className="font-medium text-red-600 mb-1">Error</p>
+                <p className="text-red-500 bg-red-50 rounded-2xl p-4">{error}</p>
+              </div>
+            </div>
+          )}
+
+          <div ref={messagesEndRef} />
         </div>
 
-        {/* Input Area - Fixed at bottom */}
-        <div className="shrink-0">
-          <form onSubmit={handleSubmit} className="space-y-2">
-            <div>
-              <label className="block text-xs text-green-600 mb-1">[INPUT_COMMAND]</label>
+        {/* Input Area */}
+        <div className="border-t border-gray-200 pt-4">
+          <form onSubmit={handleSubmit} className="flex gap-3">
+            <div className="flex-1 relative">
               <textarea
                 ref={textareaRef}
                 value={message}
@@ -204,37 +231,36 @@ export default function Home() {
                     }
                   }
                 }}
-                placeholder="Enter command... (Press Enter to send)"
-                className="w-full px-4 py-3 bg-black border border-green-800 rounded text-green-400 focus:outline-none focus:border-green-500 resize-none text-sm placeholder-green-800"
-                rows={3}
+                placeholder="Send a message..."
+                className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-gray-800 placeholder-gray-400"
+                rows={1}
                 disabled={loading}
+                style={{ minHeight: '48px', maxHeight: '120px' }}
               />
             </div>
             <button
               type="submit"
               disabled={loading || !message.trim()}
-              className="w-full bg-green-900 text-green-200 font-bold py-3 rounded border border-green-700 hover:bg-green-800 hover:border-green-500 disabled:bg-gray-900 disabled:text-gray-600 disabled:border-gray-800 transition-all"
+              className="px-6 py-3 bg-blue-500 text-white font-medium rounded-xl hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
             >
-              {loading ? '>> PROCESSING...' : '>> EXECUTE'}
+              {loading ? (
+                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                </svg>
+              ) : (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+              )}
+              Send
             </button>
           </form>
-        </div>
-
-        {/* Footer */}
-        <div className="text-center text-xs text-green-700 shrink-0">
-          JOE'S AI v1.0 | TERMINAL INTERFACE | {new Date().getFullYear()}
+          <p className="text-xs text-gray-400 text-center mt-2">
+            Press Enter to send, Shift+Enter for new line
+          </p>
         </div>
       </div>
-
-      <style jsx global>{`
-        @keyframes glow {
-          0%, 100% { text-shadow: 0 0 5px #166534, 0 0 10px #166534; }
-          50% { text-shadow: 0 0 10px #22c55e, 0 0 20px #22c55e, 0 0 30px #22c55e; }
-        }
-        .glow-text {
-          animation: glow 3s ease-in-out infinite;
-        }
-      `}</style>
     </div>
   )
 }
