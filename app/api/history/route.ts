@@ -1,72 +1,63 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const JSONBIN_BIN_ID = process.env.JSONBIN_BIN_ID
-const JSONBIN_MASTER_KEY = process.env.JSONBIN_MASTER_KEY
+const JSONBIN_API = 'https://api.jsonbin.io/v3/b'
 
 export async function GET() {
-  if (!JSONBIN_BIN_ID || !JSONBIN_MASTER_KEY) {
-    return NextResponse.json({ error: 'JSONBin is not configured' }, { status: 400 })
+  const binId = process.env.JSONBIN_BIN_ID
+  const masterKey = process.env.JSONBIN_MASTER_KEY
+
+  if (!binId || !masterKey) {
+    // Return empty history if not configured
+    return NextResponse.json({ records: [] })
   }
 
   try {
-    const response = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
-      method: 'GET',
+    const res = await fetch(`${JSONBIN_API}/${binId}/latest`, {
       headers: {
-        'X-Master-Key': JSONBIN_MASTER_KEY,
-        'Content-Type': 'application/json'
+        'X-Master-Key': masterKey
       }
     })
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to read JSONBin')
+    if (!res.ok) {
+      // Bin might not exist yet, return empty
+      return NextResponse.json({ records: [] })
     }
 
-    const data = await response.json()
-    return NextResponse.json({ data: data.record })
+    const data = await res.json()
+    return NextResponse.json(data.record || { records: [] })
   } catch (error) {
-    console.error('JSONBin read error:', error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to load JSONBin data' },
-      { status: 500 }
-    )
+    console.error('Failed to fetch history:', error)
+    return NextResponse.json({ records: [] })
   }
 }
 
 export async function POST(request: NextRequest) {
-  if (!JSONBIN_BIN_ID || !JSONBIN_MASTER_KEY) {
-    return NextResponse.json({ error: 'JSONBin is not configured' }, { status: 400 })
+  const binId = process.env.JSONBIN_BIN_ID
+  const masterKey = process.env.JSONBIN_MASTER_KEY
+
+  if (!binId || !masterKey) {
+    return NextResponse.json({ error: 'JSONBin not configured' }, { status: 500 })
   }
 
   try {
-    const { messages } = await request.json()
-
-    if (!Array.isArray(messages)) {
-      return NextResponse.json({ error: 'Invalid message payload' }, { status: 400 })
-    }
-
-    const response = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
+    const body = await request.json()
+    
+    const res = await fetch(`${JSONBIN_API}/${binId}`, {
       method: 'PUT',
       headers: {
-        'X-Master-Key': JSONBIN_MASTER_KEY,
-        'Content-Type': 'application/json',
-        'X-Bin-Versioning': 'false'
+        'X-Master-Key': masterKey,
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ messages, updatedAt: new Date().toISOString() })
+      body: JSON.stringify(body)
     })
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Failed to update JSONBin')
+    if (!res.ok) {
+      return NextResponse.json({ error: 'Failed to save history' }, { status: 500 })
     }
 
-    const data = await response.json()
-    return NextResponse.json({ success: true, data })
+    return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('JSONBin save error:', error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to sync chat history' },
-      { status: 500 }
-    )
+    console.error('Failed to save history:', error)
+    return NextResponse.json({ error: 'Failed to save history' }, { status: 500 })
   }
 }

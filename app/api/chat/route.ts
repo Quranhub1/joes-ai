@@ -85,7 +85,7 @@ const SYSTEM_PROMPTS: Record<string, string> = {
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, provider: requestedProvider, mode } = await request.json()
+    const { message, provider: requestedProvider, mode, history = [] } = await request.json()
 
     if (!message?.trim()) {
       return NextResponse.json(
@@ -95,6 +95,16 @@ export async function POST(request: NextRequest) {
     }
 
     const systemPrompt = SYSTEM_PROMPTS[mode] || SYSTEM_PROMPTS.general
+
+    // Build conversation messages from history
+    const conversationMessages = [
+      { role: 'system' as const, content: systemPrompt },
+      ...history.slice(-20).map(msg => ({
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content
+      })),
+      { role: 'user' as const, content: message }
+    ]
 
     // Get available providers
     const availableProviders = await getAvailableProviders()
@@ -120,22 +130,22 @@ export async function POST(request: NextRequest) {
       try {
         switch (provider) {
           case 'groq':
-            response = await callGroqAPI(message, systemPrompt)
+            response = await callGroqAPI(conversationMessages)
             break
           case 'gemini':
-            response = await callGeminiAPI(message, systemPrompt)
+            response = await callGeminiAPI(conversationMessages)
             break
           case 'openai':
-            response = await callOpenAIAPI(message, systemPrompt)
+            response = await callOpenAIAPI(conversationMessages)
             break
           case 'claude':
-            response = await callClaudeAPI(message, systemPrompt)
+            response = await callClaudeAPI(conversationMessages)
             break
           case 'bazaarlink':
-            response = await callBazaarLinkAPI(message, systemPrompt)
+            response = await callBazaarLinkAPI(conversationMessages)
             break
           case 'completions':
-            response = await callCompletionsAPI(message, systemPrompt)
+            response = await callCompletionsAPI(conversationMessages)
             break
           default:
             continue // Skip unsupported providers
@@ -144,8 +154,8 @@ export async function POST(request: NextRequest) {
         // If we get here, the provider worked
         return NextResponse.json({
           response,
-          provider: provider, // Return which provider was actually used
-          fallback: provider !== requestedProvider // Indicate if fallback was used
+          provider: provider,
+          fallback: provider !== requestedProvider
         })
       } catch (error) {
         lastError = error as Error
@@ -183,7 +193,12 @@ async function getAvailableProviders(): Promise<string[]> {
   return providers
 }
 
-async function callBazaarLinkAPI(message: string, systemPrompt: string): Promise<string> {
+interface Message {
+  role: 'system' | 'user' | 'assistant'
+  content: string
+}
+
+async function callBazaarLinkAPI(messages: Message[]): Promise<string> {
   try {
     const res = await fetch('https://api.bazaarlink.ai/v1/chat/completions', {
       method: 'POST',
@@ -192,10 +207,7 @@ async function callBazaarLinkAPI(message: string, systemPrompt: string): Promise
       },
       body: JSON.stringify({
         model: 'auto',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: message }
-        ],
+        messages,
         temperature: 0.7,
         max_tokens: 2048
       })
@@ -212,7 +224,7 @@ async function callBazaarLinkAPI(message: string, systemPrompt: string): Promise
   }
 }
 
-async function callCompletionsAPI(message: string, systemPrompt: string): Promise<string> {
+async function callCompletionsAPI(messages: Message[]): Promise<string> {
   try {
     const res = await fetch('https://api.completions.me/v1/chat/completions', {
       method: 'POST',
@@ -221,10 +233,7 @@ async function callCompletionsAPI(message: string, systemPrompt: string): Promis
       },
       body: JSON.stringify({
         model: 'gpt-3.5-turbo',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: message }
-        ],
+        messages,
         temperature: 0.7,
         max_tokens: 2048
       })
@@ -241,7 +250,7 @@ async function callCompletionsAPI(message: string, systemPrompt: string): Promis
   }
 }
 
-async function callGroqAPI(message: string, systemPrompt: string): Promise<string> {
+async function callGroqAPI(messages: Message[]): Promise<string> {
   const apiKey = process.env.GROQ_API_KEY
   if (!apiKey) throw new Error('Groq API key not configured')
 
@@ -253,10 +262,7 @@ async function callGroqAPI(message: string, systemPrompt: string): Promise<strin
     },
     body: JSON.stringify({
       model: 'llama-3.3-70b-versatile',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: message }
-      ],
+      messages,
       temperature: 0.7,
       max_tokens: 2048
     })
@@ -271,9 +277,12 @@ async function callGroqAPI(message: string, systemPrompt: string): Promise<strin
   return data.choices[0].message.content
 }
 
-async function callGeminiAPI(message: string, systemPrompt: string): Promise<string> {
+async function callGeminiAPI(messages: Message[]): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) throw new Error('Gemini API key not configured')
+
+  // Gemini doesn't support multi-turn conversation natively, so we format as a single prompt
+  const conversationText = messages.map(m => `${m.role === 'system' ? 'System' : m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n\n')
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
@@ -284,7 +293,7 @@ async function callGeminiAPI(message: string, systemPrompt: string): Promise<str
       },
       body: JSON.stringify({
         contents: [{
-          parts: [{ text: `${systemPrompt}\n\nUser: ${message}` }]
+          parts: [{ text: conversationText }]
         }],
         generationConfig: {
           temperature: 0.7,
@@ -303,7 +312,7 @@ async function callGeminiAPI(message: string, systemPrompt: string): Promise<str
   return data.candidates[0].content.parts[0].text
 }
 
-async function callOpenAIAPI(message: string, systemPrompt: string): Promise<string> {
+async function callOpenAIAPI(messages: Message[]): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) throw new Error('OpenAI API key not configured')
 
@@ -315,10 +324,7 @@ async function callOpenAIAPI(message: string, systemPrompt: string): Promise<str
     },
     body: JSON.stringify({
       model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: message }
-      ],
+      messages,
       temperature: 0.7,
       max_tokens: 2048
     })
@@ -333,9 +339,13 @@ async function callOpenAIAPI(message: string, systemPrompt: string): Promise<str
   return data.choices[0].message.content
 }
 
-async function callClaudeAPI(message: string, systemPrompt: string): Promise<string> {
+async function callClaudeAPI(messages: Message[]): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) throw new Error('Anthropic API key not configured')
+
+  // Claude uses system message separately
+  const systemMessage = messages.find(m => m.role === 'system')
+  const conversationMessages = messages.filter(m => m.role !== 'system')
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -348,10 +358,8 @@ async function callClaudeAPI(message: string, systemPrompt: string): Promise<str
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 2048,
-      system: systemPrompt,
-      messages: [
-        { role: 'user', content: message }
-      ]
+      system: systemMessage?.content || 'You are a helpful AI assistant.',
+      messages: conversationMessages
     })
   })
 

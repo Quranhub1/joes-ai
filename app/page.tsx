@@ -92,7 +92,7 @@ export default function Home() {
           <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
             <span className="text-white font-bold text-sm">AI</span>
           </div>
-          <h1 className="text-xl font-semibold text-gray-800">Joe's AI Interface</h1>
+          <h1 className="text-xl font-semibold text-gray-800">Joes AI Interface</h1>
         </div>
         <div className="flex items-center gap-4">
           <select
@@ -149,7 +149,7 @@ export default function Home() {
               <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
                 <span className="text-white font-bold text-2xl">AI</span>
               </div>
-              <h2 className="text-2xl font-semibold text-gray-800 mb-2">Welcome to Joe's AI</h2>
+              <h2 className="text-2xl font-semibold text-gray-800 mb-2">Welcome to Joes AI</h2>
               <p className="text-gray-500">Select a mode and start chatting with AI</p>
             </div>
           )}
