@@ -1,5 +1,3 @@
-import crypto from 'crypto'
-
 // Simple in-memory cache (in production, use Redis or similar)
 interface CacheEntry {
   prompt: string
@@ -12,12 +10,19 @@ const imageCache = new Map<string, CacheEntry>()
 const CACHE_TTL = 24 * 60 * 60 * 1000 // 24 hours
 const MAX_CACHE_SIZE = 1000 // Limit cache size
 
-function generatePromptHash(prompt: string): string {
-  return crypto.createHash('sha256').update(prompt.trim().toLowerCase()).digest('hex')
+// Simple hash function for Edge Runtime compatibility (no crypto module needed)
+function simpleHash(str: string): string {
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i)
+    hash = ((hash << 5) - hash) + char
+    hash = hash & hash // Convert to 32bit integer
+  }
+  return Math.abs(hash).toString(36)
 }
 
 export function getCachedImage(prompt: string): string[] | null {
-  const hash = generatePromptHash(prompt)
+  const hash = simpleHash(prompt.trim().toLowerCase())
   const entry = imageCache.get(hash)
 
   if (!entry) return null
@@ -34,7 +39,7 @@ export function getCachedImage(prompt: string): string[] | null {
 }
 
 export function setCachedImage(prompt: string, output: string[]): void {
-  const hash = generatePromptHash(prompt)
+  const hash = simpleHash(prompt.trim().toLowerCase())
 
   // Evict oldest entries if cache is full
   if (imageCache.size >= MAX_CACHE_SIZE) {
