@@ -32,6 +32,7 @@ export default function Home() {
   const [error, setError] = useState('')
   const [history, setHistory] = useState<Message[]>([])
   const [isHistoryLoaded, setIsHistoryLoaded] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -103,7 +104,7 @@ export default function Home() {
           message,
           provider: selectedProvider,
           mode: selectedMode,
-          history: updatedHistory.slice(-20) // Send last 20 messages for context
+          history: updatedHistory.slice(-20)
         })
       })
 
@@ -138,6 +139,10 @@ export default function Home() {
     }
   }
 
+  const formatTime = (timestamp: number) => {
+    return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  }
+
   return (
     <div className="min-h-screen bg-white flex flex-col">
       {/* Header */}
@@ -150,13 +155,24 @@ export default function Home() {
         </div>
         <div className="flex items-center gap-4">
           {history.length > 0 && (
-            <button
-              onClick={clearHistory}
-              className="px-4 py-2 text-sm text-gray-600 hover:text-red-600 transition-colors"
-              title="Clear chat history"
-            >
-              Clear Chat
-            </button>
+            <>
+              <button
+                onClick={() => setShowHistory(!showHistory)}
+                className="px-4 py-2 text-sm text-blue-600 hover:text-blue-800 transition-colors flex items-center gap-1"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                History ({history.length})
+              </button>
+              <button
+                onClick={clearHistory}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-red-600 transition-colors"
+                title="Clear chat history"
+              >
+                Clear
+              </button>
+            </>
           )}
           <select
             value={selectedProvider}
@@ -215,7 +231,10 @@ export default function Home() {
                     <span className="text-white text-sm">Y</span>
                   </div>
                   <div className="flex-1">
-                    <p className="font-medium text-gray-800 mb-1">You</p>
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="font-medium text-gray-800">You</p>
+                      <span className="text-xs text-gray-400">{formatTime(msg.timestamp)}</span>
+                    </div>
                     <p className="text-gray-700 bg-gray-50 rounded-2xl rounded-tl-md p-4">{msg.content}</p>
                   </div>
                 </>
@@ -225,7 +244,10 @@ export default function Home() {
                     <span className="text-white text-sm">AI</span>
                   </div>
                   <div className="flex-1">
-                    <p className="font-medium text-gray-800 mb-1">AI Assistant</p>
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="font-medium text-gray-800">AI Assistant</p>
+                      <span className="text-xs text-gray-400">{formatTime(msg.timestamp)}</span>
+                    </div>
                     <div className="text-gray-700 bg-gray-50 rounded-2xl rounded-tl-md p-4 whitespace-pre-wrap leading-relaxed">
                       {msg.content}
                     </div>
@@ -321,7 +343,7 @@ export default function Home() {
             </button>
           </form>
           <p className="text-xs text-gray-400 text-center mt-2">
-            Press Enter to send, Shift+Enter for new line • Chat is saved automatically
+            Press Enter to send, Shift+Enter for new line • Chat history is saved automatically
           </p>
         </div>
       </div>
