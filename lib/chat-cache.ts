@@ -1,5 +1,3 @@
-import crypto from 'crypto'
-
 // Simple in-memory cache for chat responses
 interface ChatCacheEntry {
   response: string
@@ -12,9 +10,20 @@ const chatCache = new Map<string, ChatCacheEntry>()
 const CHAT_CACHE_TTL = 60 * 60 * 1000 // 1 hour
 const MAX_CHAT_CACHE_SIZE = 500
 
+// Simple hash function (no crypto module needed)
+function simpleHash(str: string): string {
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i)
+    hash = ((hash << 5) - hash) + char
+    hash = hash & hash // Convert to 32bit integer
+  }
+  return Math.abs(hash).toString(36)
+}
+
 function generateChatHash(message: string, provider: string, mode: string): string {
   const content = `${message.trim().toLowerCase()}:${provider}:${mode}`
-  return crypto.createHash('sha256').update(content).digest('hex')
+  return simpleHash(content)
 }
 
 export function getCachedChatResponse(message: string, provider: string, mode: string): { response: string; provider: string } | null {
@@ -42,12 +51,13 @@ export function setCachedChatResponse(message: string, provider: string, mode: s
     let oldestKey = ''
     let oldestTime = Date.now()
 
-    for (const [key, entry] of chatCache.entries()) {
+    // Use forEach instead of for...of to avoid downlevelIteration issues
+    chatCache.forEach((entry, key) => {
       if (entry.timestamp < oldestTime) {
         oldestTime = entry.timestamp
         oldestKey = key
       }
-    }
+    })
 
     if (oldestKey) {
       chatCache.delete(oldestKey)
@@ -65,9 +75,10 @@ export function setCachedChatResponse(message: string, provider: string, mode: s
 // Clean up expired entries periodically
 setInterval(() => {
   const now = Date.now()
-  for (const [key, entry] of chatCache.entries()) {
+  // Use forEach instead of for...of to avoid downlevelIteration issues
+  chatCache.forEach((entry, key) => {
     if (now > entry.expiresAt) {
       chatCache.delete(key)
     }
-  }
+  })
 }, 300000) // Clean up every 5 minutes
