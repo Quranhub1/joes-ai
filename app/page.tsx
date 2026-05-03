@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useSession, signIn, signOut } from 'next-auth/react';
+// Comment out NextAuth to avoid 500 errors when not configured
+// import { useSession, signIn, signOut } from 'next-auth/react';
 
 interface Provider {
   id: string;
@@ -29,7 +30,8 @@ const MODES = [
 ];
 
 export default function Home() {
-  const { data: session } = useSession();
+  // const { data: session } = useSession(); // Commented out to avoid NextAuth errors
+  const session = null; // No session when NextAuth is disabled
   const [message, setMessage] = useState('');
   const [providers, setProviders] = useState<Provider[]>([]);
   const [selectedProvider, setSelectedProvider] = useState('bazaarlink');
@@ -312,6 +314,7 @@ export default function Home() {
             >
               Reset Profile
             </button>
+            {/* Commented out NextAuth buttons to avoid 500 errors
             {session ? (
               <div className="flex items-center gap-3 border-l border-gray-300 pl-4">
                 <div className="text-sm">
@@ -335,6 +338,7 @@ export default function Home() {
                 Sign In
               </button>
             )}
+            */}
             <select
               value={selectedProvider}
               onChange={(e) => setSelectedProvider(e.target.value)}
