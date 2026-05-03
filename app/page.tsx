@@ -132,11 +132,9 @@ export default function Home() {
   }
 
   const clearHistory = () => {
-    if (confirm('Are you sure you want to clear the chat history?')) {
-      setHistory([])
-      localStorage.removeItem('chatHistory')
-      setError('')
-    }
+    setHistory([])
+    localStorage.removeItem('chatHistory')
+    setError('')
   }
 
   const formatTime = (timestamp: number) => {
