@@ -1,18 +1,17 @@
-'use client'
+'use client';
 
-import { useState, useEffect, useRef } from 'react'
-import React from 'react'
+import { useState, useEffect, useRef } from 'react';
 
 interface Provider {
-  id: string
-  name: string
-  type: 'premium' | 'free'
+  id: string;
+  name: string;
+  type: 'premium' | 'free';
 }
 
 interface Message {
-  role: 'user' | 'assistant'
-  content: string
-  timestamp: number
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
 }
 
 const MODES = [
@@ -21,80 +20,74 @@ const MODES = [
   { id: 'personal', label: 'Personal Advice' },
   { id: 'predictions', label: 'Predictions' },
   { id: 'creative', label: 'Creative' }
-]
+];
 
 export default function Home() {
-  const [message, setMessage] = useState('')
-  const [providers, setProviders] = useState<Provider[]>([])
-  const [selectedProvider, setSelectedProvider] = useState('bazaarlink')
-  const [selectedMode, setSelectedMode] = useState('general')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [history, setHistory] = useState<Message[]>([])
-  const [isHistoryLoaded, setIsHistoryLoaded] = useState(false)
-  const [showHistory, setShowHistory] = useState(false)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [message, setMessage] = useState('');
+  const [providers, setProviders] = useState<Provider[]>([]);
+  const [selectedProvider, setSelectedProvider] = useState('bazaarlink');
+  const [selectedMode, setSelectedMode] = useState('general');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [history, setHistory] = useState<Message[]>([]);
+  const [isHistoryLoaded, setIsHistoryLoaded] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Load chat history from localStorage on mount
   useEffect(() => {
-    const savedHistory = localStorage.getItem('chatHistory')
+    const savedHistory = localStorage.getItem('chatHistory');
     if (savedHistory) {
       try {
-        setHistory(JSON.parse(savedHistory))
+        setHistory(JSON.parse(savedHistory));
       } catch (e) {
-        console.error('Failed to load chat history:', e)
+        console.error('Failed to load chat history:', e);
       }
     }
-    setIsHistoryLoaded(true)
-  }, [])
+    setIsHistoryLoaded(true);
+  }, []);
 
-  // Save chat history to localStorage whenever it changes
   useEffect(() => {
     if (isHistoryLoaded) {
-      localStorage.setItem('chatHistory', JSON.stringify(history))
+      localStorage.setItem('chatHistory', JSON.stringify(history));
     }
-  }, [history, isHistoryLoaded])
+  }, [history, isHistoryLoaded]);
 
-  // Fetch providers on mount
   useEffect(() => {
     const fetchProviders = async () => {
       try {
-        const res = await fetch('/api/providers')
-        const data = await res.json()
-        setProviders(data.providers)
+        const res = await fetch('/api/providers');
+        const data = await res.json();
+        setProviders(data.providers);
         if (data.providers.length > 0) {
-          setSelectedProvider(data.providers[0].id)
+          setSelectedProvider(data.providers[0].id);
         }
       } catch (err) {
-        console.error('Failed to fetch providers:', err)
-        setError('Could not load providers')
+        console.error('Failed to fetch providers:', err);
+        setError('Could not load providers');
       }
-    }
-    fetchProviders()
-  }, [])
+    };
+    fetchProviders();
+  }, []);
 
-  // Auto-scroll to bottom
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-  }, [history, loading, error])
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [history, loading, error]);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!message.trim()) return
+    e.preventDefault();
+    if (!message.trim()) return;
 
     const userMessage: Message = {
       role: 'user',
       content: message,
       timestamp: Date.now()
-    }
+    };
 
-    // Add user message to history immediately
-    const updatedHistory = [...history, userMessage]
-    setHistory(updatedHistory)
-    setMessage('')
-    setLoading(true)
-    setError('')
+    const updatedHistory = [...history, userMessage];
+    setHistory(updatedHistory);
+    setMessage('');
+    setLoading(true);
+    setError('');
 
     try {
       const res = await fetch('/api/chat', {
@@ -106,44 +99,43 @@ export default function Home() {
           mode: selectedMode,
           history: updatedHistory.slice(-20)
         })
-      })
+      });
 
       if (!res.ok) {
-        const errorData = await res.json()
-        throw new Error(errorData.error || 'Failed to get response')
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to get response');
       }
 
-      const data = await res.json()
+      const data = await res.json();
       
       const assistantMessage: Message = {
         role: 'assistant',
         content: data.response,
         timestamp: Date.now()
-      }
+      };
 
-      setHistory([...updatedHistory, assistantMessage])
+      setHistory([...updatedHistory, assistantMessage]);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error'
-      setError(errorMessage)
-      console.error('Chat error:', err)
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(errorMessage);
+      console.error('Chat error:', err);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const clearHistory = () => {
-    setHistory([])
-    localStorage.removeItem('chatHistory')
-    setError('')
-  }
+    setHistory([]);
+    localStorage.removeItem('chatHistory');
+    setError('');
+  };
 
   const formatTime = (timestamp: number) => {
-    return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  }
+    return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
-      {/* Header */}
       <header className="border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 bg-white z-10">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
@@ -153,24 +145,13 @@ export default function Home() {
         </div>
         <div className="flex items-center gap-4">
           {history.length > 0 && (
-            <>
-              <button
-                onClick={() => setShowHistory(!showHistory)}
-                className="px-4 py-2 text-sm text-blue-600 hover:text-blue-800 transition-colors flex items-center gap-1"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                History ({history.length})
-              </button>
-              <button
-                onClick={clearHistory}
-                className="px-4 py-2 text-sm text-gray-600 hover:text-red-600 transition-colors"
-                title="Clear chat history"
-              >
-                Clear
-              </button>
-            </>
+            <button
+              onClick={clearHistory}
+              className="px-4 py-2 text-sm text-gray-600 hover:text-red-600 transition-colors"
+              title="Clear chat history"
+            >
+              Clear
+            </button>
           )}
           <select
             value={selectedProvider}
@@ -196,10 +177,8 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Main Content */}
       <div className="flex-1 flex flex-col max-w-5xl mx-auto w-full p-4 sm:p-6 gap-4">
         
-        {/* Mode Selection */}
         <div className="flex gap-2 overflow-x-auto pb-2">
           {MODES.map(mode => (
             <button
@@ -218,9 +197,7 @@ export default function Home() {
           ))}
         </div>
 
-        {/* Messages Area */}
         <div className="flex-1 overflow-y-auto min-h-0 space-y-6 py-4">
-          {/* Show all history messages */}
           {history.map((msg, index) => (
             <div key={index} className="flex gap-4">
               {msg.role === 'user' ? (
@@ -253,9 +230,8 @@ export default function Home() {
                 </>
               )}
             </div>
-          )}
+          ))}
 
-          {/* Loading */}
           {loading && (
             <div className="flex gap-4">
               <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shrink-0 animate-pulse">
@@ -272,7 +248,6 @@ export default function Home() {
             </div>
           )}
 
-          {/* Error */}
           {error && (
             <div className="flex gap-4">
               <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center shrink-0">
@@ -285,7 +260,6 @@ export default function Home() {
             </div>
           )}
 
-          {/* Welcome message when no history */}
           {history.length === 0 && !loading && !error && isHistoryLoaded && (
             <div className="text-center py-12">
               <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -299,7 +273,6 @@ export default function Home() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input Area */}
         <div className="border-t border-gray-200 pt-4">
           <form onSubmit={handleSubmit} className="flex gap-3">
             <div className="flex-1 relative">
@@ -309,9 +282,9 @@ export default function Home() {
                 onChange={(e) => setMessage(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault()
+                    e.preventDefault();
                     if (!loading && message.trim()) {
-                      handleSubmit(e as any)
+                      handleSubmit(e as any);
                     }
                   }
                 }}
@@ -341,10 +314,10 @@ export default function Home() {
             </button>
           </form>
           <p className="text-xs text-gray-400 text-center mt-2">
-            Press Enter to send, Shift+Enter for new line • Chat history is saved automatically
+            Press Enter to send, Shift+Enter for new line
           </p>
         </div>
       </div>
     </div>
-  )
+  );
 }
