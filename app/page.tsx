@@ -14,6 +14,11 @@ interface Message {
   timestamp: number;
 }
 
+interface UserProfile {
+  name: string;
+  preferences: Record<string, string>;
+}
+
 const MODES = [
   { id: 'coding', label: 'Coding' },
   { id: 'general', label: 'General Q&A' },
@@ -31,9 +36,11 @@ export default function Home() {
   const [error, setError] = useState('');
   const [history, setHistory] = useState<Message[]>([]);
   const [isHistoryLoaded, setIsHistoryLoaded] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile>({ name: '', preferences: {} });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Load chat history and user profile from localStorage on mount
   useEffect(() => {
     const savedHistory = localStorage.getItem('chatHistory');
     if (savedHistory) {
@@ -43,15 +50,58 @@ export default function Home() {
         console.error('Failed to load chat history:', e);
       }
     }
+
+    const savedProfile = localStorage.getItem('userProfile');
+    if (savedProfile) {
+      try {
+        setUserProfile(JSON.parse(savedProfile));
+      } catch (e) {
+        console.error('Failed to load user profile:', e);
+      }
+    }
+
     setIsHistoryLoaded(true);
   }, []);
 
+  // Save chat history to localStorage whenever it changes
   useEffect(() => {
     if (isHistoryLoaded) {
       localStorage.setItem('chatHistory', JSON.stringify(history));
     }
   }, [history, isHistoryLoaded]);
 
+  // Save user profile to localStorage whenever it changes
+  useEffect(() => {
+    if (isHistoryLoaded) {
+      localStorage.setItem('userProfile', JSON.stringify(userProfile));
+    }
+  }, [userProfile, isHistoryLoaded]);
+
+  // Extract user name from messages
+  useEffect(() => {
+    if (history.length > 0) {
+      const lastUserMessage = [...history].reverse().find(m => m.role === 'user');
+      if (lastUserMessage) {
+        const namePatterns = [
+          /(?:my name is|i am|i'm|call me)\s+([A-Z][a-zA-Z]+)/i,
+          /(?:i go by|everyone calls me)\s+([A-Z][a-zA-Z]+)/i,
+        ];
+        
+        for (const pattern of namePatterns) {
+          const match = lastUserMessage.content.match(pattern);
+          if (match && match[1] && match[1].length > 1 && match[1].length < 30) {
+            const extractedName = match[1];
+            if (userProfile.name !== extractedName) {
+              setUserProfile(prev => ({ ...prev, name: extractedName }));
+            }
+            break;
+          }
+        }
+      }
+    }
+  }, [history]);
+
+  // Fetch providers on mount
   useEffect(() => {
     const fetchProviders = async () => {
       try {
@@ -69,6 +119,7 @@ export default function Home() {
     fetchProviders();
   }, []);
 
+  // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [history, loading, error]);
@@ -97,7 +148,8 @@ export default function Home() {
           message,
           provider: selectedProvider,
           mode: selectedMode,
-          history: updatedHistory.slice(-20)
+          history: updatedHistory.slice(-20),
+          userName: userProfile.name
         })
       });
 
@@ -130,6 +182,11 @@ export default function Home() {
     setError('');
   };
 
+  const clearProfile = () => {
+    setUserProfile({ name: '', preferences: {} });
+    localStorage.removeItem('userProfile');
+  };
+
   const formatTime = (timestamp: number) => {
     return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
@@ -141,17 +198,31 @@ export default function Home() {
           <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
             <span className="text-white font-bold text-sm">AI</span>
           </div>
-          <h1 className="text-xl font-semibold text-gray-800">Joe's AI Interface</h1>
+          <div>
+            <h1 className="text-xl font-semibold text-gray-800">
+              Joe's AI Interface
+              {userProfile.name && <span className="text-sm font-normal text-gray-500 ml-2">• {userProfile.name}</span>}
+            </h1>
+          </div>
         </div>
         <div className="flex items-center gap-4">
           {history.length > 0 && (
-            <button
-              onClick={clearHistory}
-              className="px-4 py-2 text-sm text-gray-600 hover:text-red-600 transition-colors"
-              title="Clear chat history"
-            >
-              Clear
-            </button>
+            <>
+              <button
+                onClick={clearProfile}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-blue-600 transition-colors"
+                title="Clear learned profile"
+              >
+                Reset Profile
+              </button>
+              <button
+                onClick={clearHistory}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-red-600 transition-colors"
+                title="Clear chat history"
+              >
+                Clear Chat
+              </button>
+            </>
           )}
           <select
             value={selectedProvider}
@@ -266,7 +337,7 @@ export default function Home() {
                 <span className="text-white font-bold text-2xl">AI</span>
               </div>
               <h2 className="text-2xl font-semibold text-gray-800 mb-2">Welcome to Joe's AI</h2>
-              <p className="text-gray-500">Your chat history is saved automatically. Select a mode and start chatting!</p>
+              <p className="text-gray-500">Your chat history is saved automatically. Tell me your name and start chatting!</p>
             </div>
           )}
 

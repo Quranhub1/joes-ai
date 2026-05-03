@@ -85,7 +85,7 @@ const SYSTEM_PROMPTS: Record<string, string> = {
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, provider: requestedProvider, mode, history = [] } = await request.json()
+    const { message, provider: requestedProvider, mode, history = [], userName } = await request.json()
 
     if (!message?.trim()) {
       return NextResponse.json(
@@ -94,7 +94,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const systemPrompt = SYSTEM_PROMPTS[mode] || SYSTEM_PROMPTS.general
+    let systemPrompt = SYSTEM_PROMPTS[mode] || SYSTEM_PROMPTS.general
+    
+    // Add user name to system prompt if available
+    if (userName) {
+      systemPrompt = `${systemPrompt}\n\nThe user's name is ${userName}. Address them by name when appropriate and remember this throughout the conversation.`
+    }
 
     // Build conversation messages from history
     const conversationMessages = [
