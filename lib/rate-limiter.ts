@@ -83,9 +83,13 @@ export function checkRateLimit(request: NextRequest): NextResponse | null {
 // Clean up old records periodically
 setInterval(() => {
   const now = Date.now()
-  for (const [key, record] of rateLimitStore.entries()) {
+  const keysToDelete: string[] = []
+
+  rateLimitStore.forEach((record, key) => {
     if (now > record.resetTime) {
-      rateLimitStore.delete(key)
+      keysToDelete.push(key)
     }
-  }
+  })
+
+  keysToDelete.forEach(key => rateLimitStore.delete(key))
 }, 60000) // Clean up every minute
