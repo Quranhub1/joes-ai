@@ -8,6 +8,12 @@ interface Provider {
   type: 'premium' | 'free'
 }
 
+interface Message {
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: number
+}
+
 const MODES = [
   { id: 'coding', label: 'Coding' },
   { id: 'general', label: 'General Q&A' },
@@ -18,15 +24,37 @@ const MODES = [
 
 export default function Home() {
   const [message, setMessage] = useState('')
-  const [response, setResponse] = useState('')
   const [providers, setProviders] = useState<Provider[]>([])
   const [selectedProvider, setSelectedProvider] = useState('bazaarlink')
   const [selectedMode, setSelectedMode] = useState('general')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [history, setHistory] = useState<Message[]>([])
+  const [isHistoryLoaded, setIsHistoryLoaded] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
+  // Load chat history from localStorage on mount
+  useEffect(() => {
+    const savedHistory = localStorage.getItem('chatHistory')
+    if (savedHistory) {
+      try {
+        setHistory(JSON.parse(savedHistory))
+      } catch (e) {
+        console.error('Failed to load chat history:', e)
+      }
+    }
+    setIsHistoryLoaded(true)
+  }, [])
+
+  // Save chat history to localStorage whenever it changes
+  useEffect(() => {
+    if (isHistoryLoaded) {
+      localStorage.setItem('chatHistory', JSON.stringify(history))
+    }
+  }, [history, isHistoryLoaded])
+
+  // Fetch providers on mount
   useEffect(() => {
     const fetchProviders = async () => {
       try {
@@ -44,18 +72,28 @@ export default function Home() {
     fetchProviders()
   }, [])
 
+  // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-  }, [loading, response, error])
+  }, [history, loading, error])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!message.trim()) return
 
+    const userMessage: Message = {
+      role: 'user',
+      content: message,
+      timestamp: Date.now()
+    }
+
+    // Add user message to history immediately
+    const updatedHistory = [...history, userMessage]
+    setHistory(updatedHistory)
+    setMessage('')
     setLoading(true)
     setError('')
-    setResponse('')
-    
+
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -63,7 +101,8 @@ export default function Home() {
         body: JSON.stringify({
           message,
           provider: selectedProvider,
-          mode: selectedMode
+          mode: selectedMode,
+          history: updatedHistory.slice(-20) // Send last 20 messages for context
         })
       })
 
@@ -73,14 +112,28 @@ export default function Home() {
       }
 
       const data = await res.json()
-      setResponse(data.response)
-      setMessage('')
+      
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: data.response,
+        timestamp: Date.now()
+      }
+
+      setHistory([...updatedHistory, assistantMessage])
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error'
       setError(errorMessage)
       console.error('Chat error:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const clearHistory = () => {
+    if (confirm('Are you sure you want to clear the chat history?')) {
+      setHistory([])
+      localStorage.removeItem('chatHistory')
+      setError('')
     }
   }
 
@@ -92,9 +145,18 @@ export default function Home() {
           <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
             <span className="text-white font-bold text-sm">AI</span>
           </div>
-          <h1 className="text-xl font-semibold text-gray-800">Joes AI Interface</h1>
+          <h1 className="text-xl font-semibold text-gray-800">Joe's AI Interface</h1>
         </div>
         <div className="flex items-center gap-4">
+          {history.length > 0 && (
+            <button
+              onClick={clearHistory}
+              className="px-4 py-2 text-sm text-gray-600 hover:text-red-600 transition-colors"
+              title="Clear chat history"
+            >
+              Clear Chat
+            </button>
+          )}
           <select
             value={selectedProvider}
             onChange={(e) => setSelectedProvider(e.target.value)}
@@ -143,27 +205,32 @@ export default function Home() {
 
         {/* Messages Area */}
         <div className="flex-1 overflow-y-auto min-h-0 space-y-6 py-4">
-          {/* Welcome */}
-          {!response && !loading && !error && (
-            <div className="text-center py-12">
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <span className="text-white font-bold text-2xl">AI</span>
-              </div>
-              <h2 className="text-2xl font-semibold text-gray-800 mb-2">Welcome to Joes AI</h2>
-              <p className="text-gray-500">Select a mode and start chatting with AI</p>
-            </div>
-          )}
-
-          {/* User Message */}
-          {message && (
-            <div className="flex gap-4">
-              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center shrink-0">
-                <span className="text-white text-sm">Y</span>
-              </div>
-              <div className="flex-1">
-                <p className="font-medium text-gray-800 mb-1">You</p>
-                <p className="text-gray-700 bg-gray-50 rounded-2xl rounded-tl-md p-4">{message}</p>
-              </div>
+          {/* Show all history messages */}
+          {history.map((msg, index) => (
+            <div key={index} className="flex gap-4">
+              {msg.role === 'user' ? (
+                <>
+                  <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center shrink-0">
+                    <span className="text-white text-sm">Y</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-800 mb-1">You</p>
+                    <p className="text-gray-700 bg-gray-50 rounded-2xl rounded-tl-md p-4">{msg.content}</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shrink-0">
+                    <span className="text-white text-sm">AI</span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-800 mb-1">AI Assistant</p>
+                    <div className="text-gray-700 bg-gray-50 rounded-2xl rounded-tl-md p-4 whitespace-pre-wrap leading-relaxed">
+                      {msg.content}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -184,21 +251,6 @@ export default function Home() {
             </div>
           )}
 
-          {/* Response */}
-          {response && (
-            <div className="flex gap-4">
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shrink-0">
-                <span className="text-white text-sm">AI</span>
-              </div>
-              <div className="flex-1">
-                <p className="font-medium text-gray-800 mb-1">AI Assistant</p>
-                <div className="text-gray-700 bg-gray-50 rounded-2xl rounded-tl-md p-4 whitespace-pre-wrap leading-relaxed">
-                  {response}
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Error */}
           {error && (
             <div className="flex gap-4">
@@ -209,6 +261,17 @@ export default function Home() {
                 <p className="font-medium text-red-600 mb-1">Error</p>
                 <p className="text-red-500 bg-red-50 rounded-2xl p-4">{error}</p>
               </div>
+            </div>
+          )}
+
+          {/* Welcome message when no history */}
+          {history.length === 0 && !loading && !error && isHistoryLoaded && (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <span className="text-white font-bold text-2xl">AI</span>
+              </div>
+              <h2 className="text-2xl font-semibold text-gray-800 mb-2">Welcome to Joe's AI</h2>
+              <p className="text-gray-500">Your chat history is saved automatically. Select a mode and start chatting!</p>
             </div>
           )}
 
@@ -257,7 +320,7 @@ export default function Home() {
             </button>
           </form>
           <p className="text-xs text-gray-400 text-center mt-2">
-            Press Enter to send, Shift+Enter for new line
+            Press Enter to send, Shift+Enter for new line • Chat is saved automatically
           </p>
         </div>
       </div>
