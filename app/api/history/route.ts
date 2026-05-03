@@ -7,8 +7,8 @@ export async function GET() {
   const masterKey = process.env.JSONBIN_MASTER_KEY
 
   if (!binId || !masterKey) {
-    // Return empty history if not configured
-    return NextResponse.json({ records: [] })
+    // Return empty data if not configured
+    return NextResponse.json({ chatHistory: [], userProfile: { name: '', preferences: {} } })
   }
 
   try {
@@ -20,14 +20,15 @@ export async function GET() {
 
     if (!res.ok) {
       // Bin might not exist yet, return empty
-      return NextResponse.json({ records: [] })
+      return NextResponse.json({ chatHistory: [], userProfile: { name: '', preferences: {} } })
     }
 
     const data = await res.json()
-    return NextResponse.json(data.record || { records: [] })
+    const record = data.record || { chatHistory: [], userProfile: { name: '', preferences: {} } }
+    return NextResponse.json(record)
   } catch (error) {
     console.error('Failed to fetch history:', error)
-    return NextResponse.json({ records: [] })
+    return NextResponse.json({ chatHistory: [], userProfile: { name: '', preferences: {} } })
   }
 }
 

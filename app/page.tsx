@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useSession, signIn, signOut } from 'next-auth/react';
 
 interface Provider {
   id: string;
@@ -28,6 +29,7 @@ const MODES = [
 ];
 
 export default function Home() {
+  const { data: session } = useSession();
   const [message, setMessage] = useState('');
   const [providers, setProviders] = useState<Provider[]>([]);
   const [selectedProvider, setSelectedProvider] = useState('bazaarlink');
@@ -39,6 +41,7 @@ export default function Home() {
   const [userProfile, setUserProfile] = useState<UserProfile>({ name: '', preferences: {} });
   const [profileStatus, setProfileStatus] = useState('');
   const [profileInput, setProfileInput] = useState('');
+  const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -59,42 +62,77 @@ export default function Home() {
     return '';
   };
 
-  // Load chat history and user profile from localStorage on mount
+  // Sync data to JSONBin
+  const syncToJsonBin = async (data: { chatHistory: Message[]; userProfile: UserProfile }) => {
+    try {
+      await fetch('/api/history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+    } catch (err) {
+      console.warn('Failed to sync to JSONBin:', err);
+    }
+  };
+
+  // Load data from JSONBin
+  const loadFromJsonBin = async () => {
+    try {
+      const res = await fetch('/api/history');
+      const data = await res.json();
+      if (data.chatHistory) setHistory(data.chatHistory);
+      if (data.userProfile) setUserProfile(data.userProfile);
+    } catch (err) {
+      console.warn('Failed to load from JSONBin:', err);
+    }
+  };
+
+  // Load chat history and user profile from JSONBin/localStorage on mount
   useEffect(() => {
-    const savedHistory = localStorage.getItem('chatHistory');
-    if (savedHistory) {
-      try {
-        setHistory(JSON.parse(savedHistory));
-      } catch (e) {
-        console.error('Failed to load chat history:', e);
-      }
-    }
+    const loadData = async () => {
+      // Try JSONBin first
+      await loadFromJsonBin();
 
-    const savedProfile = localStorage.getItem('userProfile');
-    if (savedProfile) {
-      try {
-        setUserProfile(JSON.parse(savedProfile));
-      } catch (e) {
-        console.error('Failed to load user profile:', e);
+      // Fallback to localStorage if JSONBin fails
+      const savedHistory = localStorage.getItem('chatHistory');
+      if (savedHistory && history.length === 0) {
+        try {
+          setHistory(JSON.parse(savedHistory));
+        } catch (e) {
+          console.error('Failed to load chat history:', e);
+        }
       }
-    }
 
-    setIsHistoryLoaded(true);
+      const savedProfile = localStorage.getItem('userProfile');
+      if (savedProfile && userProfile.name === '') {
+        try {
+          setUserProfile(JSON.parse(savedProfile));
+        } catch (e) {
+          console.error('Failed to load user profile:', e);
+        }
+      }
+
+      setIsHistoryLoaded(true);
+    };
+
+    loadData();
   }, []);
 
-  // Save chat history to localStorage whenever it changes
+  // Sync chat history to both localStorage and JSONBin whenever it changes
   useEffect(() => {
-    if (isHistoryLoaded) {
+    if (isHistoryLoaded && history.length > 0) {
       localStorage.setItem('chatHistory', JSON.stringify(history));
+      syncToJsonBin({ chatHistory: history, userProfile });
     }
-  }, [history, isHistoryLoaded]);
+  }, [history, isHistoryLoaded, userProfile]);
 
-  // Save user profile to localStorage whenever it changes
+  // Sync user profile to both localStorage and JSONBin whenever it changes
   useEffect(() => {
-    if (isHistoryLoaded) {
+    if (isHistoryLoaded && userProfile.name) {
       localStorage.setItem('userProfile', JSON.stringify(userProfile));
+      syncToJsonBin({ chatHistory: history, userProfile });
     }
-  }, [userProfile, isHistoryLoaded]);
+  }, [userProfile, isHistoryLoaded, history]);
 
   useEffect(() => {
     setProfileInput(userProfile.name);
@@ -196,6 +234,7 @@ export default function Home() {
   const clearHistory = () => {
     setHistory([]);
     localStorage.removeItem('chatHistory');
+    syncToJsonBin({ chatHistory: [], userProfile });
     setError('');
   };
 
@@ -211,14 +250,22 @@ export default function Home() {
   };
 
   const clearProfile = () => {
-    setUserProfile({ name: '', preferences: {} });
+    const clearedProfile = { name: '', preferences: {} };
+    setUserProfile(clearedProfile);
     setProfileInput('');
     localStorage.removeItem('userProfile');
+    syncToJsonBin({ chatHistory: history, userProfile: clearedProfile });
     setProfileStatus('Profile reset');
   };
 
   const formatTime = (timestamp: number) => {
     return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const copyToClipboard = (text: string, index: number) => {
+    navigator.clipboard.writeText(text);
+    setCopiedMessageIndex(index);
+    setTimeout(() => setCopiedMessageIndex(null), 2000);
   };
 
   return (
@@ -230,7 +277,7 @@ export default function Home() {
               <span className="text-white font-bold text-sm">AI</span>
             </div>
             <div>
-              <h1 className="text-xl font-semibold text-gray-800">Joe's AI Interface</h1>
+              <h1 className="text-xl font-semibold text-gray-800">JOES AI Interface</h1>
               {userProfile.name ? (
                 <p className="text-sm text-green-600">Hello, {userProfile.name}! I’ll remember your name.</p>
               ) : (
@@ -239,23 +286,54 @@ export default function Home() {
             </div>
           </div>
           <div className="flex items-center gap-4">
+            <a
+              href="/generate"
+              className="px-4 py-2 text-sm bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all shadow-md hover:shadow-lg flex items-center gap-2"
+              title="AI Image Generator"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              Image Gen
+            </a>
             {history.length > 0 && (
-              <>
+              <button
+                onClick={clearHistory}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-red-600 transition-colors"
+                title="Clear chat history"
+              >
+                Clear Chat
+              </button>
+            )}
+            <button
+              onClick={clearProfile}
+              className="px-4 py-2 text-sm text-gray-600 hover:text-blue-600 transition-colors"
+              title="Clear learned profile"
+            >
+              Reset Profile
+            </button>
+            {session ? (
+              <div className="flex items-center gap-3 border-l border-gray-300 pl-4">
+                <div className="text-sm">
+                  <p className="font-medium text-gray-800">{session.user?.name}</p>
+                  <p className="text-xs text-gray-500">Synced to cloud</p>
+                </div>
                 <button
-                  onClick={clearProfile}
-                  className="px-4 py-2 text-sm text-gray-600 hover:text-blue-600 transition-colors"
-                  title="Clear learned profile"
-                >
-                  Reset Profile
-                </button>
-                <button
-                  onClick={clearHistory}
+                  onClick={() => signOut()}
                   className="px-4 py-2 text-sm text-gray-600 hover:text-red-600 transition-colors"
-                  title="Clear chat history"
+                  title="Sign out from Google"
                 >
-                  Clear Chat
+                  Sign Out
                 </button>
-              </>
+              </div>
+            ) : (
+              <button
+                onClick={() => signIn('google')}
+                className="px-4 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                title="Sign in with Google to sync across devices"
+              >
+                Sign In
+              </button>
             )}
             <select
               value={selectedProvider}
@@ -282,40 +360,42 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="bg-slate-50 border border-gray-200 rounded-2xl p-4 mx-6 sm:mx-auto max-w-5xl w-full">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold text-slate-800">User Profile</p>
-            <p className="text-sm text-slate-500">
-              {userProfile.name ? `Stored name: ${userProfile.name}` : 'No name saved yet.'}
-            </p>
-          </div>
+      {userProfile.name === '' && (
+        <div className="bg-slate-50 border border-gray-200 rounded-2xl p-4 mx-6 sm:mx-auto max-w-5xl w-full">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-800">User Profile</p>
+              <p className="text-sm text-slate-500">
+                {userProfile.name ? `Stored name: ${userProfile.name}` : 'No name saved yet.'}
+              </p>
+            </div>
 
-          <div className="flex flex-col sm:flex-row items-stretch gap-2 w-full sm:w-auto">
-            <input
-              type="text"
-              value={profileInput}
-              onChange={(e) => setProfileInput(e.target.value)}
-              placeholder="Enter your name"
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
-            />
-            <button
-              type="button"
-              onClick={saveProfileName}
-              className="px-4 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors"
-            >
-              Save Name
-            </button>
-            <button
-              type="button"
-              onClick={clearProfile}
-              className="px-4 py-3 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors"
-            >
-              Reset
-            </button>
+            <div className="flex flex-col sm:flex-row items-stretch gap-2 w-full sm:w-auto">
+              <input
+                type="text"
+                value={profileInput}
+                onChange={(e) => setProfileInput(e.target.value)}
+                placeholder="Enter your name"
+                className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
+              />
+              <button
+                type="button"
+                onClick={saveProfileName}
+                className="px-4 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors"
+              >
+                Save Name
+              </button>
+              <button
+                type="button"
+                onClick={clearProfile}
+                className="px-4 py-3 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors"
+              >
+                Reset
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div className="flex-1 flex flex-col max-w-5xl mx-auto w-full p-4 sm:p-6 gap-4">
         
@@ -366,6 +446,13 @@ export default function Home() {
                     <div className="text-gray-700 bg-gray-50 rounded-2xl rounded-tl-md p-4 whitespace-pre-wrap leading-relaxed">
                       {msg.content}
                     </div>
+                    <button
+                      onClick={() => copyToClipboard(msg.content, index)}
+                      className="mt-2 px-3 py-1 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                      title="Copy message to clipboard"
+                    >
+                      {copiedMessageIndex === index ? '✓ Copied!' : '📋 Copy'}
+                    </button>
                   </div>
                 </>
               )}
@@ -405,7 +492,7 @@ export default function Home() {
               <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
                 <span className="text-white font-bold text-2xl">AI</span>
               </div>
-              <h2 className="text-2xl font-semibold text-gray-800 mb-2">Welcome to Joe's AI</h2>
+              <h2 className="text-2xl font-semibold text-gray-800 mb-2">Welcome to JOES AI</h2>
               <p className="text-gray-500">Your chat history is saved automatically. Tell me your name and start chatting!</p>
             </div>
           )}

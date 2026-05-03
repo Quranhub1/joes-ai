@@ -113,16 +113,18 @@ export async function POST(request: NextRequest) {
 
     // Get available providers
     const availableProviders = await getAvailableProviders()
+    console.log('Available providers:', availableProviders)
 
     // Determine which provider to use with fallback logic
     let providerToUse = requestedProvider
 
-    // If requested provider is not available, try fallback providers
-    const fallbackOrder = ['groq', 'bazaarlink', 'completions', 'openai', 'claude']
+    // Fallback order: Try all providers in sequence until one succeeds
+    const fallbackOrder = ['groq', 'gemini', 'bazaarlink', 'completions', 'together', 'deepinfra', 'lepton', 'cohere', 'huggingface', 'openai', 'claude']
 
     if (!availableProviders.includes(requestedProvider)) {
       // Find first available provider in fallback order
       providerToUse = fallbackOrder.find(p => availableProviders.includes(p)) || requestedProvider
+      console.log(`Requested provider ${requestedProvider} not available, using fallback: ${providerToUse}`)
     }
 
     let response: string
@@ -130,9 +132,11 @@ export async function POST(request: NextRequest) {
 
     // Try the requested provider first, then fallbacks
     const providersToTry = [providerToUse, ...fallbackOrder.filter(p => p !== providerToUse && availableProviders.includes(p))]
+    console.log('Providers to try (in order):', providersToTry)
 
     for (const provider of providersToTry) {
       try {
+        console.log(`Attempting provider: ${provider}`)
         switch (provider) {
           case 'groq':
             response = await callGroqAPI(conversationMessages)
@@ -152,11 +156,30 @@ export async function POST(request: NextRequest) {
           case 'completions':
             response = await callCompletionsAPI(conversationMessages)
             break
+          case 'together':
+            response = await callTogetherAPI(conversationMessages)
+            break
+          case 'replicate':
+            response = await callReplicateAPI(conversationMessages)
+            break
+          case 'cohere':
+            response = await callCohereAPI(conversationMessages)
+            break
+          case 'deepinfra':
+            response = await callDeepInfraAPI(conversationMessages)
+            break
+          case 'lepton':
+            response = await callLeptonAPI(conversationMessages)
+            break
+          case 'huggingface':
+            response = await callHuggingFaceAPI(conversationMessages)
+            break
           default:
             continue // Skip unsupported providers
         }
 
         // If we get here, the provider worked
+        console.log(`Provider ${provider} succeeded`)
         return NextResponse.json({
           response,
           provider: provider,
@@ -164,7 +187,7 @@ export async function POST(request: NextRequest) {
         })
       } catch (error) {
         lastError = error as Error
-        console.warn(`Provider ${provider} failed:`, error)
+        console.error(`Provider ${provider} failed:`, lastError.message)
         // Continue to next provider
       }
     }
@@ -192,8 +215,15 @@ async function getAvailableProviders(): Promise<string[]> {
   if (process.env.OPENAI_API_KEY) providers.push('openai')
   if (process.env.ANTHROPIC_API_KEY) providers.push('claude')
 
-  // Free providers that don't require API keys
+  // Always available providers (no API key required)
   providers.push('bazaarlink', 'completions')
+  
+  if (process.env.TOGETHER_API_KEY) providers.push('together')
+  if (process.env.REPLICATE_API_KEY) providers.push('replicate')
+  if (process.env.COHERE_API_KEY) providers.push('cohere')
+  if (process.env.DEEPINFRA_API_KEY) providers.push('deepinfra')
+  if (process.env.LEPTON_API_KEY) providers.push('lepton')
+  if (process.env.HUGGINGFACE_API_KEY) providers.push('huggingface')
 
   return providers
 }
@@ -204,7 +234,11 @@ interface Message {
 }
 
 async function callBazaarLinkAPI(messages: Message[]): Promise<string> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 second timeout
+
   try {
+    console.log('Calling BazaarLink API...')
     const res = await fetch('https://api.bazaarlink.ai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -214,44 +248,93 @@ async function callBazaarLinkAPI(messages: Message[]): Promise<string> {
         model: 'auto',
         messages,
         temperature: 0.7,
-        max_tokens: 2048
-      })
+        max_tokens: 1024  // Reduced from 2048 to save tokens
+      }),
+      signal: controller.signal
     })
 
+    clearTimeout(timeoutId)
+
     if (!res.ok) {
-      throw new Error(`BazaarLink API error: ${res.status}`)
+      const errorText = await res.text().catch(() => 'No error details')
+      throw new Error(`BazaarLink API error: ${res.status} - ${errorText}`)
     }
 
     const data = await res.json()
-    return data.choices?.[0]?.message?.content || 'No response from BazaarLink'
+    const content = data.choices?.[0]?.message?.content
+    if (!content) {
+      console.warn('BazaarLink returned no content in choices')
+      throw new Error('BazaarLink returned empty response')
+    }
+    return content
   } catch (error) {
-    throw new Error(`BazaarLink API failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    clearTimeout(timeoutId)
+    if (error instanceof Error) {
+      if (error.name === 'AbortError' || error.message.includes('aborted')) {
+        throw new Error('BazaarLink API timeout after 15 seconds')
+      }
+      if (error.message.includes('fetch failed') || error.message.includes('network')) {
+        throw new Error('BazaarLink API unreachable - network error')
+      }
+      throw new Error(`BazaarLink API failed: ${error.message}`)
+    }
+    throw new Error('BazaarLink API failed with unknown error')
   }
 }
 
 async function callCompletionsAPI(messages: Message[]): Promise<string> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 15000) // 15 second timeout
+
   try {
-    const res = await fetch('https://api.completions.me/v1/chat/completions', {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    }
+
+    // Add API key if available
+    if (process.env.COMPLETIONS_API_KEY) {
+      headers['Authorization'] = `Bearer ${process.env.COMPLETIONS_API_KEY}`
+    }
+
+    console.log('Calling Completions.me API...')
+    const res = await fetch('https://completions.me/api/v1/chat/completions', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers,
       body: JSON.stringify({
         model: 'gpt-3.5-turbo',
         messages,
         temperature: 0.7,
-        max_tokens: 2048
-      })
+        max_tokens: 1024  // Reduced from 2048 to save tokens
+      }),
+      signal: controller.signal
     })
 
+    clearTimeout(timeoutId)
+
     if (!res.ok) {
-      throw new Error(`Completions.me API error: ${res.status}`)
+      const errorText = await res.text().catch(() => 'No error details')
+      throw new Error(`Completions.me API error: ${res.status} - ${errorText}`)
     }
 
     const data = await res.json()
-    return data.choices?.[0]?.message?.content || 'No response from Completions.me'
+    const content = data.choices?.[0]?.message?.content
+    if (!content) {
+      console.warn('Completions.me returned no content in choices')
+      throw new Error('Completions.me returned empty response')
+    }
+    return content
   } catch (error) {
-    throw new Error(`Completions.me API failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    clearTimeout(timeoutId)
+    if (error instanceof Error) {
+      if (error.name === 'AbortError' || error.message.includes('aborted')) {
+        throw new Error('Completions.me API timeout after 15 seconds')
+      }
+      if (error.message.includes('fetch failed') || error.message.includes('network')) {
+        throw new Error('Completions.me API unreachable - network error')
+      }
+      throw new Error(`Completions.me API failed: ${error.message}`)
+    }
+    throw new Error('Completions.me API failed with unknown error')
   }
 }
 
@@ -269,7 +352,7 @@ async function callGroqAPI(messages: Message[]): Promise<string> {
       model: 'llama-3.3-70b-versatile',
       messages,
       temperature: 0.7,
-      max_tokens: 2048
+      max_tokens: 1024  // Reduced from 2048 to save tokens
     })
   })
 
@@ -302,7 +385,7 @@ async function callGeminiAPI(messages: Message[]): Promise<string> {
         }],
         generationConfig: {
           temperature: 0.7,
-          maxOutputTokens: 2048
+          maxOutputTokens: 1024  // Reduced from 2048 to save tokens
         }
       })
     }
@@ -331,7 +414,7 @@ async function callOpenAIAPI(messages: Message[]): Promise<string> {
       model: 'gpt-4o-mini',
       messages,
       temperature: 0.7,
-      max_tokens: 2048
+      max_tokens: 1024  // Reduced from 2048 to save tokens
     })
   })
 
@@ -362,7 +445,7 @@ async function callClaudeAPI(messages: Message[]): Promise<string> {
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 2048,
+      max_tokens: 1024,  // Reduced from 2048 to save tokens
       system: systemMessage?.content || 'You are a helpful AI assistant.',
       messages: conversationMessages
     })
@@ -375,4 +458,167 @@ async function callClaudeAPI(messages: Message[]): Promise<string> {
 
   const data = await res.json()
   return data.content[0].text
+}
+
+async function callTogetherAPI(messages: Message[]): Promise<string> {
+  const apiKey = process.env.TOGETHER_API_KEY
+  if (!apiKey) throw new Error('Together AI API key not configured')
+
+  const res = await fetch('https://api.together.xyz/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'meta-llama/Llama-3-70b-chat-hf',
+      messages,
+      temperature: 0.7,
+      max_tokens: 1024  // Reduced from 2048 to save tokens
+    })
+  })
+
+  if (!res.ok) {
+    const error = await res.json()
+    throw new Error(error.error?.message || 'Together AI API error')
+  }
+
+  const data = await res.json()
+  return data.choices[0].message.content
+}
+
+async function callReplicateAPI(messages: Message[]): Promise<string> {
+  const apiKey = process.env.REPLICATE_API_KEY
+  if (!apiKey) throw new Error('Replicate API key not configured')
+
+  const res = await fetch('https://api.replicate.com/v1/predictions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      version: 'e0f031d3bce1e7e763e01e91588783e913e3587e170550ee4b66b58f1eef9759',
+      input: {
+        prompt: messages[messages.length - 1].content
+      }
+    })
+  })
+
+  if (!res.ok) {
+    throw new Error('Replicate API error')
+  }
+
+  const data = await res.json()
+  return data.output?.join('') || 'No response'
+}
+
+async function callCohereAPI(messages: Message[]): Promise<string> {
+  const apiKey = process.env.COHERE_API_KEY
+  if (!apiKey) throw new Error('Cohere API key not configured')
+
+  const conversationHistory = messages
+    .filter(m => m.role !== 'system')
+    .map(m => ({
+      role: m.role === 'user' ? 'user' : 'assistant',
+      message: m.content
+    }))
+
+  const res = await fetch('https://api.cohere.ai/v1/chat', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      message: messages[messages.length - 1].content,
+      chat_history: conversationHistory.slice(0, -1),
+      model: 'command'
+    })
+  })
+
+  if (!res.ok) {
+    throw new Error('Cohere API error')
+  }
+
+  const data = await res.json()
+  return data.text
+}
+
+async function callDeepInfraAPI(messages: Message[]): Promise<string> {
+  const apiKey = process.env.DEEPINFRA_API_KEY
+  if (!apiKey) throw new Error('DeepInfra API key not configured')
+
+  const res = await fetch('https://api.deepinfra.com/v1/openai/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'meta-llama/Llama-2-70b-chat-hf',
+      messages,
+      temperature: 0.7,
+      max_tokens: 1024  // Reduced from 2048 to save tokens
+    })
+  })
+
+  if (!res.ok) {
+    throw new Error('DeepInfra API error')
+  }
+
+  const data = await res.json()
+  return data.choices[0].message.content
+}
+
+async function callLeptonAPI(messages: Message[]): Promise<string> {
+  const apiKey = process.env.LEPTON_API_KEY
+  if (!apiKey) throw new Error('Lepton AI API key not configured')
+
+  const res = await fetch('https://api.lepton.ai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'llama2-70b',
+      messages,
+      temperature: 0.7,
+      max_tokens: 1024  // Reduced from 2048 to save tokens
+    })
+  })
+
+  if (!res.ok) {
+    throw new Error('Lepton AI API error')
+  }
+
+  const data = await res.json()
+  return data.choices[0].message.content
+}
+
+async function callHuggingFaceAPI(messages: Message[]): Promise<string> {
+  const apiKey = process.env.HUGGINGFACE_API_KEY
+  if (!apiKey) throw new Error('Hugging Face API key not configured')
+
+  const res = await fetch('https://api-inference.huggingface.co/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'HuggingFaceH4/zephyr-7b-beta',
+      messages,
+      temperature: 0.7,
+      max_tokens: 1024  // Reduced from 2048 to save tokens
+    })
+  })
+
+  if (!res.ok) {
+    throw new Error('Hugging Face API error')
+  }
+
+  const data = await res.json()
+  return data.choices[0].message.content
 }

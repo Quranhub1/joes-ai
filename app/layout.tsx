@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { Providers } from './providers'
 
 export const metadata: Metadata = {
   title: "Joes AI Interface",
@@ -18,7 +19,9 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
       </head>
-      <body className="h-full m-0 p-0 font-mono">{children}</body>
+      <body className="h-full m-0 p-0 font-mono">
+        <Providers>{children}</Providers>
+      </body>
     </html>
   )
 }
