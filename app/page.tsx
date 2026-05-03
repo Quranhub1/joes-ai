@@ -257,33 +257,28 @@ export default function Home() {
                 </button>
               </>
             )}
-            {profileStatus && (
-              <span className="px-3 py-2 bg-green-50 text-green-700 rounded-full text-xs font-medium">{profileStatus}</span>
-            )}
+            <select
+              value={selectedProvider}
+              onChange={(e) => setSelectedProvider(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              disabled={loading}
+            >
+              <optgroup label="Premium">
+                {providers
+                  .filter(p => p.type === 'premium')
+                  .map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+              </optgroup>
+              <optgroup label="Free">
+                {providers
+                  .filter(p => p.type === 'free')
+                  .map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+              </optgroup>
+            </select>
           </div>
-        </div>
-        <div className="flex items-center gap-4">
-          <select
-            value={selectedProvider}
-            onChange={(e) => setSelectedProvider(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-            disabled={loading}
-          >
-            <optgroup label="Premium">
-              {providers
-                .filter(p => p.type === 'premium')
-                .map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-            </optgroup>
-            <optgroup label="Free">
-              {providers
-                .filter(p => p.type === 'free')
-                .map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-            </optgroup>
-          </select>
         </div>
       </header>
 
