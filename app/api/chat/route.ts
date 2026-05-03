@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 const SYSTEM_PROMPTS: Record<string, string> = {
-  coding: `You are a world-class senior software architect and coding expert. Your responses should be comprehensive, detailed, and provide production-ready code.`,
-  general: `You are a highly knowledgeable AI assistant. Provide detailed, accurate responses with examples when helpful.`,
-  personal: `You are a deeply empathetic life advisor with expertise in psychology and personal growth. Provide thoughtful, supportive guidance.`,
-  predictions: `You are a data-driven sports analyst. Provide detailed analysis with statistics and probability assessments.`,
-  creative: `You are a creative writing assistant. Help with storytelling, poetry, and imaginative content creation.`
+  coding: `You are a world-class senior software architect and coding expert. Your responses should be comprehensive, detailed.`,
+  general: `You are a highly knowledgeable AI assistant. Provide detailed, accurate responses.`,
+  personal: `You are a deeply empathetic life advisor. Provide thoughtful, supportive guidance.`,
+  predictions: `You are a data-driven sports analyst. Provide detailed analysis with statistics.`,
+  creative: `You are a creative writing assistant. Help with storytelling, poetry, and imaginative content.`
 }
 
 export async function POST(request: NextRequest) {
@@ -16,22 +16,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 })
     }
 
-    // Check Groq API key
     if (!process.env.GROQ_API_KEY) {
       return NextResponse.json({ 
-        error: 'GROQ_API_KEY not configured. Please set your Groq API key in environment variables.' 
+        error: 'GROQ_API_KEY not configured. Please set your Groq API key.' 
       }, { status: 500 })
     }
 
     let systemPrompt = SYSTEM_PROMPTS[mode] || SYSTEM_PROMPTS.general
     
     if (userName) {
-      systemPrompt = `${systemPrompt}\n\nThe user's name is ${userName}. Always remember their name during this conversation.`
+      systemPrompt = `${systemPrompt}\n\nThe user's name is ${userName}. Always remember their name.`
     }
 
     const conversationMessages = [
       { role: 'system' as const, content: systemPrompt },
-      ...history.slice(-20).map((msg: any) => ({
+      ...history.slice(-10).map((msg: any) => ({
         role: msg.role as 'user' | 'assistant',
         content: msg.content
       })),
@@ -49,13 +48,23 @@ export async function POST(request: NextRequest) {
           model: 'llama-3.3-70b-versatile',
           messages: conversationMessages,
           temperature: 0.7,
-          max_tokens: 1024
+          max_tokens: 512  // Reduced to save tokens and avoid rate limits
         })
       })
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error?.message || 'Groq API error')
+        const errorMsg = error.error?.message || 'Groq API error'
+        
+        // Handle rate limit specifically
+        if (errorMsg.includes('rate limit') || errorMsg.includes('Rate limit')) {
+          return NextResponse.json({ 
+            error: 'Rate limit reached. Please wait a moment and try again.',
+            limit: true
+          }, { status: 429 })
+        }
+        
+        throw new Error(errorMsg)
       }
 
       const data = await response.json()
@@ -84,7 +93,7 @@ export async function GET() {
   return NextResponse.json({
     providers: [{
       id: 'groq',
-      name: 'Groq Llama 3.1 70B',
+      name: 'Groq Llama 3.3 70B',
       type: 'configured' as const,
       description: 'Fast, powerful LLM via Groq'
     }]
