@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
     
     // Add user name to system prompt if available
     if (userName) {
-      systemPrompt = `${systemPrompt}\n\nThe user's name is ${userName}. Address them by name when appropriate and remember this throughout the conversation.`
+      systemPrompt = `${systemPrompt}\n\nThe user's name is ${userName}. Always remember their name during this conversation and use it naturally in your replies when appropriate.`
     }
 
     // Build conversation messages from history

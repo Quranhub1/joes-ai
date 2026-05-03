@@ -37,8 +37,27 @@ export default function Home() {
   const [history, setHistory] = useState<Message[]>([]);
   const [isHistoryLoaded, setIsHistoryLoaded] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile>({ name: '', preferences: {} });
+  const [profileStatus, setProfileStatus] = useState('');
+  const [profileInput, setProfileInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const extractUserName = (text: string) => {
+    const patterns = [
+      /(?:my name is|i am|i'm|call me|i go by|everyone calls me|this is)\s+([A-Z][a-zA-Z]{1,30})/i,
+      /(?:you can call me|name's|name is)\s+([A-Z][a-zA-Z]{1,30})/i,
+      /(?:it's|its)\s+([A-Z][a-zA-Z]{1,30})/i
+    ];
+
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match?.[1]) {
+        return match[1].trim();
+      }
+    }
+
+    return '';
+  };
 
   // Load chat history and user profile from localStorage on mount
   useEffect(() => {
@@ -77,29 +96,27 @@ export default function Home() {
     }
   }, [userProfile, isHistoryLoaded]);
 
-  // Extract user name from messages
   useEffect(() => {
-    if (history.length > 0) {
-      const lastUserMessage = [...history].reverse().find(m => m.role === 'user');
-      if (lastUserMessage) {
-        const namePatterns = [
-          /(?:my name is|i am|i'm|call me)\s+([A-Z][a-zA-Z]+)/i,
-          /(?:i go by|everyone calls me)\s+([A-Z][a-zA-Z]+)/i,
-        ];
-        
-        for (const pattern of namePatterns) {
-          const match = lastUserMessage.content.match(pattern);
-          if (match && match[1] && match[1].length > 1 && match[1].length < 30) {
-            const extractedName = match[1];
-            if (userProfile.name !== extractedName) {
-              setUserProfile(prev => ({ ...prev, name: extractedName }));
-            }
-            break;
-          }
-        }
-      }
+    setProfileInput(userProfile.name);
+  }, [userProfile.name]);
+
+  // Extract user name from messages and update profile
+  useEffect(() => {
+    if (history.length === 0) return;
+
+    const newName = [...history]
+      .reverse()
+      .filter(m => m.role === 'user')
+      .map(m => extractUserName(m.content))
+      .find(Boolean);
+
+    if (newName && newName !== userProfile.name) {
+      setUserProfile(prev => ({ ...prev, name: newName }));
+      setProfileStatus(`Learned your name: ${newName}`);
+      const timer = window.setTimeout(() => setProfileStatus(''), 4000);
+      return () => window.clearTimeout(timer);
     }
-  }, [history]);
+  }, [history, userProfile.name]);
 
   // Fetch providers on mount
   useEffect(() => {
@@ -182,9 +199,22 @@ export default function Home() {
     setError('');
   };
 
+  const saveProfileName = () => {
+    const trimmedName = profileInput.trim();
+    if (!trimmedName) {
+      setProfileStatus('Please enter a valid name');
+      return;
+    }
+
+    setUserProfile(prev => ({ ...prev, name: trimmedName }));
+    setProfileStatus(`Saved profile name: ${trimmedName}`);
+  };
+
   const clearProfile = () => {
     setUserProfile({ name: '', preferences: {} });
+    setProfileInput('');
     localStorage.removeItem('userProfile');
+    setProfileStatus('Profile reset');
   };
 
   const formatTime = (timestamp: number) => {
@@ -193,37 +223,46 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
-      <header className="border-b border-gray-200 px-6 py-4 flex items-center justify-between sticky top-0 bg-white z-10">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-sm">AI</span>
+      <header className="border-b border-gray-200 px-6 py-4 flex flex-col gap-3 sticky top-0 bg-white z-10">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-sm">AI</span>
+            </div>
+            <div>
+              <h1 className="text-xl font-semibold text-gray-800">Joe's AI Interface</h1>
+              {userProfile.name ? (
+                <p className="text-sm text-green-600">Hello, {userProfile.name}! I’ll remember your name.</p>
+              ) : (
+                <p className="text-sm text-gray-500">Tell me your name once and I’ll remember it.</p>
+              )}
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-semibold text-gray-800">
-              Joe's AI Interface
-              {userProfile.name && <span className="text-sm font-normal text-gray-500 ml-2">• {userProfile.name}</span>}
-            </h1>
+          <div className="flex items-center gap-4">
+            {history.length > 0 && (
+              <>
+                <button
+                  onClick={clearProfile}
+                  className="px-4 py-2 text-sm text-gray-600 hover:text-blue-600 transition-colors"
+                  title="Clear learned profile"
+                >
+                  Reset Profile
+                </button>
+                <button
+                  onClick={clearHistory}
+                  className="px-4 py-2 text-sm text-gray-600 hover:text-red-600 transition-colors"
+                  title="Clear chat history"
+                >
+                  Clear Chat
+                </button>
+              </>
+            )}
+            {profileStatus && (
+              <span className="px-3 py-2 bg-green-50 text-green-700 rounded-full text-xs font-medium">{profileStatus}</span>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-4">
-          {history.length > 0 && (
-            <>
-              <button
-                onClick={clearProfile}
-                className="px-4 py-2 text-sm text-gray-600 hover:text-blue-600 transition-colors"
-                title="Clear learned profile"
-              >
-                Reset Profile
-              </button>
-              <button
-                onClick={clearHistory}
-                className="px-4 py-2 text-sm text-gray-600 hover:text-red-600 transition-colors"
-                title="Clear chat history"
-              >
-                Clear Chat
-              </button>
-            </>
-          )}
           <select
             value={selectedProvider}
             onChange={(e) => setSelectedProvider(e.target.value)}
@@ -247,6 +286,41 @@ export default function Home() {
           </select>
         </div>
       </header>
+
+      <div className="bg-slate-50 border border-gray-200 rounded-2xl p-4 mx-6 sm:mx-auto max-w-5xl w-full">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-slate-800">User Profile</p>
+            <p className="text-sm text-slate-500">
+              {userProfile.name ? `Stored name: ${userProfile.name}` : 'No name saved yet.'}
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-stretch gap-2 w-full sm:w-auto">
+            <input
+              type="text"
+              value={profileInput}
+              onChange={(e) => setProfileInput(e.target.value)}
+              placeholder="Enter your name"
+              className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
+            />
+            <button
+              type="button"
+              onClick={saveProfileName}
+              className="px-4 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors"
+            >
+              Save Name
+            </button>
+            <button
+              type="button"
+              onClick={clearProfile}
+              className="px-4 py-3 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors"
+            >
+              Reset
+            </button>
+          </div>
+        </div>
+      </div>
 
       <div className="flex-1 flex flex-col max-w-5xl mx-auto w-full p-4 sm:p-6 gap-4">
         
