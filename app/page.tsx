@@ -34,12 +34,13 @@ export default function Home() {
   const session = null; // No session when NextAuth is disabled
   const [message, setMessage] = useState('');
   const [providers, setProviders] = useState<Provider[]>([]);
-  const [selectedProvider, setSelectedProvider] = useState('bazaarlink');
+  const [selectedProvider, setSelectedProvider] = useState('groq');
   const [selectedMode, setSelectedMode] = useState('general');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [history, setHistory] = useState<Message[]>([]);
   const [isHistoryLoaded, setIsHistoryLoaded] = useState(false);
+  const [memoryUsage, setMemoryUsage] = useState({ messages: 0, characters: 0 });
   const [userProfile, setUserProfile] = useState<UserProfile>({ name: '', preferences: {} });
   const [profileStatus, setProfileStatus] = useState('');
   const [profileInput, setProfileInput] = useState('');
@@ -158,6 +159,15 @@ export default function Home() {
     }
   }, [history, userProfile.name]);
 
+  // Update memory usage stats
+  useEffect(() => {
+    const totalChars = history.reduce((sum, msg) => sum + msg.content.length, 0)
+    setMemoryUsage({
+      messages: history.length,
+      characters: totalChars
+    })
+  }, [history])
+
   // Fetch providers on mount
   useEffect(() => {
     const fetchProviders = async () => {
@@ -165,7 +175,7 @@ export default function Home() {
         const res = await fetch('/api/providers');
         const data = await res.json();
         setProviders(data.providers);
-        if (data.providers.length > 0) {
+        if (data.providers.length > 0 && !data.providers.find(p => p.id === selectedProvider)) {
           setSelectedProvider(data.providers[0].id);
         }
       } catch (err) {
@@ -205,7 +215,7 @@ export default function Home() {
           message,
           provider: selectedProvider,
           mode: selectedMode,
-          history: updatedHistory.slice(-20),
+          history: updatedHistory.slice(-100),
           userName: userProfile.name
         })
       });
@@ -419,6 +429,12 @@ export default function Home() {
               {mode.label}
             </button>
           ))}
+          <div className="ml-auto flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-full border border-gray-200">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span className="text-xs text-gray-600 whitespace-nowrap">
+              Memory: {memoryUsage.messages} msgs
+            </span>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto min-h-0 space-y-6 py-4">
