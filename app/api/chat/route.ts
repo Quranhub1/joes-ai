@@ -20,6 +20,109 @@ function buildConversationSummary(history: Array<{ role: string; content: string
   return `\n\n--- Recent Conversation Context (last ${recentHistory.length} messages) ---\n${summary}\n--- End of Context ---\n\nIMPORTANT: Use the above context to maintain conversation continuity. Always reference relevant earlier points when responding. Stay on topic and build upon the ongoing discussion.`
 }
 
+interface ToolDefinition {
+  type: 'function'
+  function: {
+    name: string
+    description: string
+    parameters: {
+      type: 'object'
+      properties: Record<string, { type: string; description: string }>
+      required: string[]
+    }
+  }
+}
+
+function getTools(availableTools: string[]): ToolDefinition[] {
+  const tools: ToolDefinition[] = []
+
+  if (availableTools.includes('web_search')) {
+    tools.push({
+      type: 'function',
+      function: {
+        name: 'web_search',
+        description: 'Search the web for current information, news, facts, or any information you are uncertain about. Use this when the user asks about current events, recent news, or when you need up-to-date information.',
+        parameters: {
+          type: 'object',
+          properties: {
+            query: { type: 'string', description: 'The search query string' }
+          },
+          required: ['query']
+        }
+      }
+    })
+  }
+
+  if (availableTools.includes('youtube_search')) {
+    tools.push({
+      type: 'function',
+      function: {
+        name: 'youtube_search',
+        description: 'Search YouTube for videos. Use this when the user asks to find videos, tutorials, or video content on any topic.',
+        parameters: {
+          type: 'object',
+          properties: {
+            query: { type: 'string', description: 'The search query for YouTube videos' }
+          },
+          required: ['query']
+        }
+      }
+    })
+  }
+
+  return tools
+}
+
+async function executeWebSearch(query: string): Promise<string> {
+  const googleApiKey = process.env.GOOGLE_API_KEY
+  const googleCx = process.env.GOOGLE_SEARCH_CX
+
+  if (googleApiKey && googleCx) {
+    try {
+      const url = `https://www.googleapis.com/customsearch/v1?key=${googleApiKey}&cx=${googleCx}&q=${encodeURIComponent(query)}`
+      const res = await fetch(url, { next: { revalidate: 0 } })
+      const data = await res.json()
+      
+      if (data.items && data.items.length > 0) {
+        const results = data.items.slice(0, 5).map((item: any, i: number) => 
+          `${i + 1}. **${item.title}**\n   ${item.snippet}\n   ${item.link}`
+        ).join('\n\n')
+        return `Search results for "${query}":\n\n${results}`
+      }
+    } catch (e) {
+      console.error('Google search failed:', e)
+    }
+  }
+
+  return `[Search unavailable] Searched for: "${query}". No results available. Consider adding GOOGLE_API_KEY and GOOGLE_SEARCH_CX environment variables for web search.`
+}
+
+async function executeYouTubeSearch(query: string): Promise<string> {
+  const apiKey = process.env.YOUTUBE_API_KEY
+
+  if (apiKey) {
+    try {
+      const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=5&q=${encodeURIComponent(query)}&type=video&key=${apiKey}`
+      const res = await fetch(url, { next: { revalidate: 0 } })
+      const data = await res.json()
+      
+      if (data.items && data.items.length > 0) {
+        const results = data.items.map((item: any, i: number) => {
+          const videoId = item.id.videoId
+          const title = item.snippet.title
+          const channel = item.snippet.channelTitle
+          return `${i + 1}. **${title}** by ${channel}\n   https://www.youtube.com/watch?v=${videoId}`
+        }).join('\n\n')
+        return `YouTube search results for "${query}":\n\n${results}`
+      }
+    } catch (e) {
+      console.error('YouTube search failed:', e)
+    }
+  }
+
+  return `[YouTube search unavailable] Searched for: "${query}". No results available. Consider adding YOUTUBE_API_KEY environment variable for YouTube search.`
+}
+
 interface ProviderConfig {
   id: string
   name: string
@@ -29,7 +132,9 @@ interface ProviderConfig {
   headers: Record<string, string>
   transformMessages: (messages: Array<{ role: string; content: string }>, systemPrompt: string) => Array<{ role: string; content: string }>
   parseResponse: (data: any) => string
+  parseToolCalls: (data: any) => Array<{ name: string; arguments: Record<string, any> }> | null
   type: 'openai-compatible' | 'anthropic' | 'gemini' | 'replicate'
+  supportsTools: boolean
 }
 
 function getProviderConfig(providerId: string, systemPrompt: string): ProviderConfig | null {
@@ -51,7 +156,9 @@ function getProviderConfig(providerId: string, systemPrompt: string): ProviderCo
           ...messages
         ],
         parseResponse: (data) => data.choices?.[0]?.message?.content || '',
-        type: 'openai-compatible'
+        parseToolCalls: (data) => data.choices?.[0]?.message?.tool_calls || null,
+        type: 'openai-compatible',
+        supportsTools: true
       }
 
     case 'openai':
@@ -71,7 +178,9 @@ function getProviderConfig(providerId: string, systemPrompt: string): ProviderCo
           ...messages
         ],
         parseResponse: (data) => data.choices?.[0]?.message?.content || '',
-        type: 'openai-compatible'
+        parseToolCalls: (data) => data.choices?.[0]?.message?.tool_calls || null,
+        type: 'openai-compatible',
+        supportsTools: true
       }
 
     case 'anthropic':
@@ -93,7 +202,9 @@ function getProviderConfig(providerId: string, systemPrompt: string): ProviderCo
           return [systemMessage, ...filteredMessages]
         },
         parseResponse: (data) => data.content?.[0]?.text || '',
-        type: 'anthropic'
+        parseToolCalls: (data) => null,
+        type: 'anthropic',
+        supportsTools: false
       }
 
     case 'gemini':
@@ -115,7 +226,9 @@ function getProviderConfig(providerId: string, systemPrompt: string): ProviderCo
           return [{ systemInstruction: { parts: [{ text: sysPrompt }] }, contents } as any]
         },
         parseResponse: (data) => data.candidates?.[0]?.content?.parts?.[0]?.text || '',
-        type: 'gemini'
+        parseToolCalls: (data) => null,
+        type: 'gemini',
+        supportsTools: false
       }
 
     case 'replicate':
@@ -132,7 +245,9 @@ function getProviderConfig(providerId: string, systemPrompt: string): ProviderCo
         },
         transformMessages: (messages, sysPrompt) => messages,
         parseResponse: (data) => data.output || '',
-        type: 'replicate'
+        parseToolCalls: (data) => null,
+        type: 'replicate',
+        supportsTools: false
       }
 
     default:
@@ -142,7 +257,7 @@ function getProviderConfig(providerId: string, systemPrompt: string): ProviderCo
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, mode = 'general', history = [], userName, provider = 'groq' } = await request.json()
+    const { message, mode = 'general', history = [], userName, provider = 'groq', tools = [] } = await request.json()
 
     if (!message?.trim()) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 })
@@ -174,6 +289,9 @@ export async function POST(request: NextRequest) {
       }, { status: 500 })
     }
 
+    const availableTools = tools.length > 0 ? tools : (process.env.ENABLE_WEB_SEARCH === 'true' ? ['web_search'] : [])
+    const toolDefinitions = getTools(availableTools)
+
     try {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 120000) // 2 minute timeout
@@ -191,6 +309,11 @@ export async function POST(request: NextRequest) {
           top_p: 0.9,
           frequency_penalty: 0.3,
           presence_penalty: 0.1
+        }
+
+        if (toolDefinitions.length > 0 && providerConfig.supportsTools) {
+          body.tools = toolDefinitions
+          body.tool_choice = 'auto'
         }
 
         response = await fetch(providerConfig.baseUrl, {
@@ -275,11 +398,75 @@ export async function POST(request: NextRequest) {
       const data = await response.json()
       const content = providerConfig.parseResponse(data)
 
+      // Handle tool calls for openai-compatible providers
+      const toolCalls = providerConfig.parseToolCalls(data)
+      let toolResults: Array<{ name: string; result: string }> = []
+      
+      if (toolCalls && toolCalls.length > 0) {
+        for (const toolCall of toolCalls) {
+          if (toolCall.name === 'web_search') {
+            const result = await executeWebSearch(toolCall.arguments.query || '')
+            toolResults.push({ name: 'web_search', result })
+          } else if (toolCall.name === 'youtube_search') {
+            const result = await executeYouTubeSearch(toolCall.arguments.query || '')
+            toolResults.push({ name: 'youtube_search', result })
+          }
+        }
+
+        // If we have tool results, send them back to the model for final response
+        if (toolResults.length > 0) {
+          const toolResultMessages = contextMessages.concat([{ role: 'assistant', content: content }])
+          
+          const followUpMessages = providerConfig.transformMessages(
+            toolResultMessages.map((m: any) => ({ ...m, content: m.content })),
+            systemPrompt
+          )
+          
+          followUpMessages.push({
+            role: 'user',
+            content: toolResults.map(t => `[Tool: ${t.name}]\n${t.result}`).join('\n\n')
+          })
+
+          const followUpController = new AbortController()
+          const followUpTimeout = setTimeout(() => followUpController.abort(), 120000)
+
+          const followUpResponse = await fetch(providerConfig.baseUrl, {
+            method: 'POST',
+            headers: providerConfig.headers,
+            body: JSON.stringify({
+              model: providerConfig.model,
+              messages: followUpMessages,
+              temperature: 0.7,
+              max_tokens: 4096,
+              top_p: 0.9,
+              frequency_penalty: 0.3,
+              presence_penalty: 0.1
+            }),
+            signal: followUpController.signal
+          })
+
+          clearTimeout(followUpTimeout)
+
+          if (followUpResponse.ok) {
+            const followUpData = await followUpResponse.json()
+            const finalContent = providerConfig.parseResponse(followUpData)
+            
+            if (finalContent) {
+              return NextResponse.json({ 
+                response: finalContent, 
+                provider: providerConfig.id,
+                toolResults 
+              })
+            }
+          }
+        }
+      }
+
       if (!content) {
         throw new Error(`Empty response from ${providerConfig.name}`)
       }
 
-      return NextResponse.json({ response: content, provider: providerConfig.id })
+      return NextResponse.json({ response: content, provider: providerConfig.id, toolResults })
     } catch (err) {
       console.error(`${providerConfig?.name || 'Provider'} API error:`, err)
       return NextResponse.json({ 

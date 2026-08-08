@@ -3,8 +3,8 @@ import './globals.css'
 import { Providers } from './providers'
 
 export const metadata: Metadata = {
-  title: "Joes AI Interface",
-  description: 'A personal AI interface integrating multiple AI services',
+  title: "Joes AI - Advanced Chat Assistant",
+  description: 'Modern AI chat interface with multi-provider support, memory, and tools',
 }
 
 export default function RootLayout({
@@ -17,9 +17,9 @@ export default function RootLayout({
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
       </head>
-      <body className="h-full m-0 p-0 font-mono">
+      <body className="h-full m-0 p-0 font-sans antialiased">
         <Providers>{children}</Providers>
       </body>
     </html>

@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-// Comment out NextAuth to avoid 500 errors when not configured
-// import { useSession, signIn, signOut } from 'next-auth/react';
+import MarkdownRenderer from '@/components/MarkdownRenderer';
 
 interface Provider {
   id: string;
@@ -14,6 +13,7 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
+  toolResults?: Array<{ name: string; result: string }>;
 }
 
 interface UserProfile {
@@ -22,16 +22,14 @@ interface UserProfile {
 }
 
 const MODES = [
-  { id: 'coding', label: 'Coding' },
-  { id: 'general', label: 'General Q&A' },
-  { id: 'personal', label: 'Personal Advice' },
-  { id: 'predictions', label: 'Predictions' },
-  { id: 'creative', label: 'Creative' }
+  { id: 'coding', label: 'Coding', icon: '💻' },
+  { id: 'general', label: 'General', icon: '💬' },
+  { id: 'personal', label: 'Personal', icon: '🧠' },
+  { id: 'predictions', label: 'Predictions', icon: '🔮' },
+  { id: 'creative', label: 'Creative', icon: '🎨' }
 ];
 
 export default function Home() {
-  // const { data: session } = useSession(); // Commented out to avoid NextAuth errors
-  const session = null; // No session when NextAuth is disabled
   const [message, setMessage] = useState('');
   const [providers, setProviders] = useState<Provider[]>([]);
   const [selectedProvider, setSelectedProvider] = useState('groq');
@@ -44,6 +42,7 @@ export default function Home() {
   const [userProfile, setUserProfile] = useState<UserProfile>({ name: '', preferences: {} });
   const [profileStatus, setProfileStatus] = useState('');
   const [profileInput, setProfileInput] = useState('');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [copiedMessageIndex, setCopiedMessageIndex] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -65,7 +64,6 @@ export default function Home() {
     return '';
   };
 
-  // Sync data to JSONBin
   const syncToJsonBin = async (data: { chatHistory: Message[]; userProfile: UserProfile }) => {
     try {
       await fetch('/api/history', {
@@ -78,7 +76,6 @@ export default function Home() {
     }
   };
 
-  // Load data from JSONBin
   const loadFromJsonBin = async () => {
     try {
       const res = await fetch('/api/history');
@@ -90,13 +87,10 @@ export default function Home() {
     }
   };
 
-  // Load chat history and user profile from JSONBin/localStorage on mount
   useEffect(() => {
     const loadData = async () => {
-      // Try JSONBin first
       await loadFromJsonBin();
 
-      // Fallback to localStorage if JSONBin fails
       const savedHistory = localStorage.getItem('chatHistory');
       if (savedHistory && history.length === 0) {
         try {
@@ -121,7 +115,6 @@ export default function Home() {
     loadData();
   }, []);
 
-  // Sync chat history to both localStorage and JSONBin whenever it changes
   useEffect(() => {
     if (isHistoryLoaded && history.length > 0) {
       localStorage.setItem('chatHistory', JSON.stringify(history));
@@ -129,7 +122,6 @@ export default function Home() {
     }
   }, [history, isHistoryLoaded, userProfile]);
 
-  // Sync user profile to both localStorage and JSONBin whenever it changes
   useEffect(() => {
     if (isHistoryLoaded && userProfile.name) {
       localStorage.setItem('userProfile', JSON.stringify(userProfile));
@@ -141,7 +133,6 @@ export default function Home() {
     setProfileInput(userProfile.name);
   }, [userProfile.name]);
 
-  // Extract user name from messages and update profile
   useEffect(() => {
     if (history.length === 0) return;
 
@@ -159,7 +150,6 @@ export default function Home() {
     }
   }, [history, userProfile.name]);
 
-  // Update memory usage stats
   useEffect(() => {
     const totalChars = history.reduce((sum, msg) => sum + msg.content.length, 0)
     setMemoryUsage({
@@ -168,7 +158,6 @@ export default function Home() {
     })
   }, [history])
 
-  // Fetch providers on mount
   useEffect(() => {
     const fetchProviders = async () => {
       try {
@@ -186,10 +175,9 @@ export default function Home() {
     fetchProviders();
   }, []);
 
-  // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [history, loading, error]);
+  }, [history, loading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -216,7 +204,8 @@ export default function Home() {
           provider: selectedProvider,
           mode: selectedMode,
           history: updatedHistory.slice(-100),
-          userName: userProfile.name
+          userName: userProfile.name,
+          tools: ['web_search', 'youtube_search']
         })
       });
 
@@ -230,7 +219,8 @@ export default function Home() {
       const assistantMessage: Message = {
         role: 'assistant',
         content: data.response,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        toolResults: data.toolResults
       };
 
       setHistory([...updatedHistory, assistantMessage]);
@@ -280,289 +270,289 @@ export default function Home() {
     setTimeout(() => setCopiedMessageIndex(null), 2000);
   };
 
+  const newChat = () => {
+    setHistory([]);
+    setError('');
+  };
+
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      <header className="border-b border-gray-200 px-6 py-4 flex flex-col gap-3 sticky top-0 bg-white z-10">
-        <div className="flex items-center justify-between gap-3">
+    <div className="flex h-screen bg-gray-50">
+      {/* Sidebar */}
+      <div className={`${sidebarOpen ? 'w-64' : 'w-0'} bg-gray-900 text-gray-100 flex flex-col transition-all duration-300 overflow-hidden`}>
+        <div className="p-4 border-b border-gray-800">
+          <button
+            onClick={newChat}
+            className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            New Chat
+          </button>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto p-3">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-2">Recent Chats</p>
+          {history.length > 0 && (
+            <div className="space-y-1">
+              {history.filter(m => m.role === 'user').slice(-10).reverse().map((msg, i) => (
+                <button
+                  key={i}
+                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-800 text-sm text-gray-300 truncate transition-colors"
+                >
+                  {msg.content.slice(0, 30)}...
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="p-4 border-t border-gray-800">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+              <span className="text-white text-sm font-bold">AI</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white truncate">JOES AI</p>
+              <p className="text-xs text-gray-400">Advanced Assistant</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Header */}
+        <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            title="Toggle sidebar"
+          >
+            <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">AI</span>
             </div>
             <div>
-              <h1 className="text-xl font-semibold text-gray-800">JOES AI Interface</h1>
-              {userProfile.name ? (
-                <p className="text-sm text-green-600">Hello, {userProfile.name}! I’ll remember your name.</p>
-              ) : (
-                <p className="text-sm text-gray-500">Tell me your name once and I’ll remember it.</p>
+              <h1 className="text-lg font-semibold text-gray-800">JOES AI</h1>
+              {userProfile.name && (
+                <p className="text-xs text-green-600">Hello, {userProfile.name}</p>
               )}
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <a
-              href="/generate"
-              className="px-4 py-2 text-sm bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all shadow-md hover:shadow-lg flex items-center gap-2"
-              title="AI Image Generator"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              Image Gen
-            </a>
-            {history.length > 0 && (
-              <button
-                onClick={clearHistory}
-                className="px-4 py-2 text-sm text-gray-600 hover:text-red-600 transition-colors"
-                title="Clear chat history"
-              >
-                Clear Chat
-              </button>
-            )}
-            <button
-              onClick={clearProfile}
-              className="px-4 py-2 text-sm text-gray-600 hover:text-blue-600 transition-colors"
-              title="Clear learned profile"
-            >
-              Reset Profile
-            </button>
-            {/* Commented out NextAuth buttons to avoid 500 errors
-            {session ? (
-              <div className="flex items-center gap-3 border-l border-gray-300 pl-4">
-                <div className="text-sm">
-                  <p className="font-medium text-gray-800">{session.user?.name}</p>
-                  <p className="text-xs text-gray-500">Synced to cloud</p>
-                </div>
-                <button
-                  onClick={() => signOut()}
-                  className="px-4 py-2 text-sm text-gray-600 hover:text-red-600 transition-colors"
-                  title="Sign out from Google"
-                >
-                  Sign Out
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => signIn('google')}
-                className="px-4 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-                title="Sign in with Google to sync across devices"
-              >
-                Sign In
-              </button>
-            )}
-            */}
+
+          <div className="ml-auto flex items-center gap-2">
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-full">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span className="text-xs text-gray-600">{memoryUsage.messages} msgs</span>
+            </div>
+            
             <select
               value={selectedProvider}
               onChange={(e) => setSelectedProvider(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
               disabled={loading}
             >
-              <optgroup label="Premium">
-                {providers
-                  .filter(p => p.type === 'premium')
-                  .map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-              </optgroup>
-              <optgroup label="Free">
-                {providers
-                  .filter(p => p.type === 'free')
-                  .map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-              </optgroup>
+              {providers.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
             </select>
-          </div>
-        </div>
-      </header>
 
-      {userProfile.name === '' && (
-        <div className="bg-slate-50 border border-gray-200 rounded-2xl p-4 mx-6 sm:mx-auto max-w-5xl w-full">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-slate-800">User Profile</p>
-              <p className="text-sm text-slate-500">
-                {userProfile.name ? `Stored name: ${userProfile.name}` : 'No name saved yet.'}
+            {history.length > 0 && (
+              <button
+                onClick={clearHistory}
+                className="px-3 py-1.5 text-xs text-gray-600 hover:text-red-600 transition-colors"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </header>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto">
+          {history.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center p-6">
+              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg">
+                <span className="text-white font-bold text-3xl">AI</span>
+              </div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">Welcome to JOES AI</h2>
+              <p className="text-gray-500 text-center max-w-md mb-8">
+                Your advanced AI assistant with memory, tools, and multi-provider support.
               </p>
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-stretch gap-2 w-full sm:w-auto">
-              <input
-                type="text"
-                value={profileInput}
-                onChange={(e) => setProfileInput(e.target.value)}
-                placeholder="Enter your name"
-                className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
-              />
-              <button
-                type="button"
-                onClick={saveProfileName}
-                className="px-4 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors"
-              >
-                Save Name
-              </button>
-              <button
-                type="button"
-                onClick={clearProfile}
-                className="px-4 py-3 bg-white border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors"
-              >
-                Reset
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="flex-1 flex flex-col max-w-5xl mx-auto w-full p-4 sm:p-6 gap-4">
-        
-        <div className="flex gap-2 overflow-x-auto pb-2">
-          {MODES.map(mode => (
-            <button
-              key={mode.id}
-              type="button"
-              onClick={() => setSelectedMode(mode.id)}
-              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
-                selectedMode === mode.id
-                  ? 'bg-blue-500 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-              disabled={loading}
-            >
-              {mode.label}
-            </button>
-          ))}
-          <div className="ml-auto flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-full border border-gray-200">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-xs text-gray-600 whitespace-nowrap">
-              Memory: {memoryUsage.messages} msgs
-            </span>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto min-h-0 space-y-6 py-4">
-          {history.map((msg, index) => (
-            <div key={index} className="flex gap-4">
-              {msg.role === 'user' ? (
-                <>
-                  <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center shrink-0">
-                    <span className="text-white text-sm">Y</span>
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="font-medium text-gray-800">You</p>
-                      <span className="text-xs text-gray-400">{formatTime(msg.timestamp)}</span>
-                    </div>
-                    <p className="text-gray-700 bg-gray-50 rounded-2xl rounded-tl-md p-4">{msg.content}</p>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shrink-0">
-                    <span className="text-white text-sm">AI</span>
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="font-medium text-gray-800">AI Assistant</p>
-                      <span className="text-xs text-gray-400">{formatTime(msg.timestamp)}</span>
-                    </div>
-                    <div className="text-gray-700 bg-gray-50 rounded-2xl rounded-tl-md p-4 whitespace-pre-wrap leading-relaxed">
-                      {msg.content}
-                    </div>
-                    <button
-                      onClick={() => copyToClipboard(msg.content, index)}
-                      className="mt-2 px-3 py-1 text-xs font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
-                      title="Copy message to clipboard"
-                    >
-                      {copiedMessageIndex === index ? '✓ Copied!' : '📋 Copy'}
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          ))}
-
-          {loading && (
-            <div className="flex gap-4">
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shrink-0 animate-pulse">
-                <span className="text-white text-sm">AI</span>
+              
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 w-full max-w-2xl">
+                {[
+                  { mode: 'coding', label: 'Code Assistant', icon: '💻' },
+                  { mode: 'general', label: 'General Q&A', icon: '💬' },
+                  { mode: 'personal', label: 'Life Advisor', icon: '🧠' },
+                  { mode: 'predictions', label: 'Analysis', icon: '🔮' },
+                  { mode: 'creative', label: 'Creative', icon: '🎨' }
+                ].map((item) => (
+                  <button
+                    key={item.mode}
+                    onClick={() => setSelectedMode(item.mode)}
+                    className="p-4 bg-white border border-gray-200 rounded-xl hover:border-blue-500 hover:shadow-md transition-all text-left"
+                  >
+                    <div className="text-2xl mb-2">{item.icon}</div>
+                    <div className="text-sm font-medium text-gray-700">{item.label}</div>
+                  </button>
+                ))}
               </div>
-              <div className="flex-1">
-                <p className="font-medium text-gray-800 mb-1">AI Assistant</p>
-                <div className="flex gap-2 items-center p-4">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+            </div>
+          ) : (
+            <div className="max-w-4xl mx-auto p-4 space-y-6">
+              {history.map((msg, index) => (
+                <div key={index} className={`flex gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  {msg.role === 'assistant' && (
+                    <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shrink-0">
+                      <span className="text-white text-sm font-bold">AI</span>
+                    </div>
+                  )}
+                  
+                  <div className={`max-w-[80%] ${msg.role === 'user' ? 'order-first' : ''}`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-medium text-gray-500">
+                        {msg.role === 'user' ? 'You' : 'AI Assistant'}
+                      </span>
+                      <span className="text-xs text-gray-400">{formatTime(msg.timestamp)}</span>
+                    </div>
+                    
+                    <div className={`rounded-2xl p-4 ${
+                      msg.role === 'user'
+                        ? 'bg-blue-600 text-white rounded-tr-md'
+                        : 'bg-white border border-gray-200 text-gray-800 rounded-tl-md'
+                    }`}>
+                      {msg.role === 'user' ? (
+                        <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                      ) : (
+                        <>
+                          <MarkdownRenderer content={msg.content} />
+                          {msg.toolResults && msg.toolResults.length > 0 && (
+                            <div className="mt-3 pt-3 border-t border-gray-100">
+                              {msg.toolResults.map((tool, i) => (
+                                <div key={i} className="text-xs text-gray-500 bg-gray-50 rounded-lg p-2 mt-1">
+                                  <span className="font-medium">{tool.name}:</span> {tool.result.slice(0, 100)}...
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <button
+                            onClick={() => copyToClipboard(msg.content, index)}
+                            className="mt-2 px-3 py-1 text-xs font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                          >
+                            {copiedMessageIndex === index ? '✓ Copied!' : '📋 Copy'}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {msg.role === 'user' && (
+                    <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center shrink-0">
+                      <span className="text-white text-sm font-bold">Y</span>
+                    </div>
+                  )}
                 </div>
-              </div>
+              ))}
+
+              {loading && (
+                <div className="flex gap-4 justify-start">
+                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shrink-0 animate-pulse">
+                    <span className="text-white text-sm font-bold">AI</span>
+                  </div>
+                  <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-md p-4">
+                    <div className="flex gap-2 items-center">
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {error && (
+                <div className="flex gap-4 justify-start">
+                  <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center shrink-0">
+                    <span className="text-white text-sm font-bold">!</span>
+                  </div>
+                  <div className="bg-red-50 border border-red-200 rounded-2xl rounded-tl-md p-4 max-w-[80%]">
+                    <p className="text-sm text-red-700">{error}</p>
+                  </div>
+                </div>
+              )}
+
+              <div ref={messagesEndRef} />
             </div>
           )}
-
-          {error && (
-            <div className="flex gap-4">
-              <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center shrink-0">
-                <span className="text-white text-sm">!</span>
-              </div>
-              <div className="flex-1">
-                <p className="font-medium text-red-600 mb-1">Error</p>
-                <p className="text-red-500 bg-red-50 rounded-2xl p-4">{error}</p>
-              </div>
-            </div>
-          )}
-
-          {history.length === 0 && !loading && !error && isHistoryLoaded && (
-            <div className="text-center py-12">
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <span className="text-white font-bold text-2xl">AI</span>
-              </div>
-              <h2 className="text-2xl font-semibold text-gray-800 mb-2">Welcome to JOES AI</h2>
-              <p className="text-gray-500">Your chat history is saved automatically. Tell me your name and start chatting!</p>
-            </div>
-          )}
-
-          <div ref={messagesEndRef} />
         </div>
 
-        <div className="border-t border-gray-200 pt-4">
-          <form onSubmit={handleSubmit} className="flex gap-3">
-            <div className="flex-1 relative">
-              <textarea
-                ref={textareaRef}
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    if (!loading && message.trim()) {
-                      handleSubmit(e as any);
-                    }
-                  }
-                }}
-                placeholder="Send a message..."
-                className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-gray-800 placeholder-gray-400"
-                rows={1}
-                disabled={loading}
-                style={{ minHeight: '48px', maxHeight: '120px' }}
-              />
+        {/* Input Area */}
+        <div className="bg-white border-t border-gray-200 p-4">
+          <form onSubmit={handleSubmit} className="max-w-4xl mx-auto">
+            <div className="flex gap-2 mb-3 overflow-x-auto pb-1">
+              {MODES.map(mode => (
+                <button
+                  key={mode.id}
+                  type="button"
+                  onClick={() => setSelectedMode(mode.id)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all ${
+                    selectedMode === mode.id
+                      ? 'bg-blue-600 text-white shadow-md'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                  disabled={loading}
+                >
+                  {mode.icon} {mode.label}
+                </button>
+              ))}
             </div>
-            <button
-              type="submit"
-              disabled={loading || !message.trim()}
-              className="px-6 py-3 bg-blue-500 text-white font-medium rounded-xl hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-            >
-              {loading ? (
-                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                </svg>
-              ) : (
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                </svg>
-              )}
-              Send
-            </button>
+
+            <div className="flex gap-3">
+              <div className="flex-1 relative">
+                <textarea
+                  ref={textareaRef}
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      if (!loading && message.trim()) {
+                        handleSubmit(e as any);
+                      }
+                    }
+                  }}
+                  placeholder="Send a message... (Shift+Enter for new line)"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-gray-800 placeholder-gray-400"
+                  rows={1}
+                  disabled={loading}
+                  style={{ minHeight: '48px', maxHeight: '120px' }}
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={loading || !message.trim()}
+                className="px-6 py-3 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+              >
+                {loading ? (
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  </svg>
+                )}
+                Send
+              </button>
+            </div>
           </form>
-          <p className="text-xs text-gray-400 text-center mt-2">
-            Press Enter to send, Shift+Enter for new line
-          </p>
         </div>
       </div>
     </div>
