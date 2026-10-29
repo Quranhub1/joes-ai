@@ -3,6 +3,15 @@ const nextConfig = {
   reactStrictMode: true,
   // Use Node.js server for Render deployment
   output: 'standalone',
+  async redirects() {
+    return [
+      {
+        source: '/',
+        destination: '/dashboard',
+        permanent: false,
+      },
+    ]
+  },
   // Allow all origins for CORS (configure properly in production)
   async headers() {
     return [
